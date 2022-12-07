@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Mon Sep 14 16:19:02 2020
+# """
+# Created on Mon Sep 14 16:19:02 2020
 
-@author: seykia
-"""
+# @author: seykia
+# """
 
 #################################### IMPORTS ##################################
 
@@ -26,22 +26,20 @@ from Plotting.plots import plot_classification_results2
 import json
 import os
 import pickle
+from pathlib import Path as path
 
 
-################################### PATHS ###################################
+################################### PATHS ###################################    
+base_path = os.path.join(os.path.abspath(os.path.join(os.getcwd(), os.pardir)), 'Data', 'Optimise')
+data_path = base_path + '\\'
+save_path = os.path.join(base_path, 'Results', 'Classifiers')
 
-
-# here you shoudld specify the path to OPTIMISE data folder and for saving results
-base_path = '/home/preclineu/seykia/Data/Optimize/' 
-data_path = base_path + 'Data/'
-save_path = base_path + 'Results/Classifiers/'
-
-if not os.path.isdir(base_path + 'Results/'):
-    os.mkdir(base_path + 'Results/')
+if not os.path.isdir(os.path.join(base_path, 'Results')):
+    os.mkdir(os.path.join(base_path, 'Results'))
 if not os.path.isdir(save_path):
     os.mkdir(save_path)
     
-
+    
 ################################ Experiment Configurations ####################
     
 # The visits used for the experiment (do not change this)
@@ -65,7 +63,7 @@ assessments = ['PANNS', 'PSP', 'CGI']
 criteria = ['PANNS', 'PSP', 'CGI']
 
 # Here specify the demographics information you want to retrieve
-with open(data_path + 'daniel_static_features.json','r') as file_object:  
+with open(os.path.join(data_path, 'daniel_static_features.json'),'r') as file_object:  
     static_feature_types = json.load(file_object)
 
 
