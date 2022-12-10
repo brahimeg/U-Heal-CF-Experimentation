@@ -1,4 +1,15 @@
-pandas
 scikit-learn
 matplotlib
 seaborn
+PyYAML
+keras==2.1.6
+tensorflow==1.15.0
+h5py==2.10.0
+lime
+dice_ml
+xgboost 
+causalgraphicalmodels
+recourse
+torch
+torchvision
+protobuf==3.19.6
