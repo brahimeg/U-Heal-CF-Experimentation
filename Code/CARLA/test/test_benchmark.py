@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-import carla.evaluation.catalog as evaluation_catalog
+import CARLA.carla.evaluation.catalog as evaluation_catalog
 from CARLA.carla.data.catalog import OnlineCatalog
 from CARLA.carla.evaluation import Benchmark
 from CARLA.carla.models.catalog import MLModelCatalog

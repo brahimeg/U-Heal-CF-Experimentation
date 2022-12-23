@@ -1,3 +1,5 @@
 .venvLaptop
+.venv
+.env
 *.pyc
 Data/Optimise/Results/*

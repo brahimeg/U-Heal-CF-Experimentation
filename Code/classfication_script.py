@@ -30,7 +30,10 @@ from pathlib import Path as path
 
 
 ################################### PATHS ###################################    
-base_path = os.path.join(os.path.abspath(os.path.join(os.getcwd(), os.pardir)), 'Data', 'Optimise')
+if ('Code' in os.getcwd()):
+    base_path = os.path.join(os.path.abspath(os.path.join(os.getcwd(), os.pardir)), 'Data', 'Optimise')
+else:
+    base_path = os.path.join(os.getcwd(), 'Data', 'Optimise')
 data_path = base_path + '\\'
 save_path = os.path.join(base_path, 'Results', 'Classifiers')
 
@@ -79,8 +82,13 @@ features, static_feature_types = feature_extraction(dynamic_features,
                                             static_feature_types=static_feature_types, 
                                             aggregation='union')
 
-remissions =compute_output_labels(dynamic_features, labels=criteria)
+remissions = compute_output_labels(dynamic_features, labels=criteria)
 
+
+
+X, Y, subjects, X_df = compute_classifier_inputs(features, remissions, assessments,
+                        'PANNS', static_feature_types, feature_visits, 
+                        label_visit, 'impute')
 
 ############################### CLASSIFICATION ################################
 

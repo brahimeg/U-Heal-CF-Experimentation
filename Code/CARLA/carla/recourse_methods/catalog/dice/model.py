@@ -99,6 +99,7 @@ class Dice(RecourseMethod):
 
         list_cfs = dice_exp.cf_examples_list
         df_cfs = pd.concat([cf.final_cfs_df for cf in list_cfs], ignore_index=True)
+        df_cfs.drop(columns=['Y'], axis=1, inplace=True)
         df_cfs = check_counterfactuals(self._mlmodel, df_cfs, factuals.index)
         df_cfs = self._mlmodel.get_ordered_features(df_cfs)
         return df_cfs

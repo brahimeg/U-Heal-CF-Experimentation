@@ -31,11 +31,12 @@ class CsvCatalog(DataCatalog):
 
     def __init__(
         self,
-        file_path: str,
         categorical: List[str],
         continuous: List[str],
         immutables: List[str],
         target: str,
+        file_path: str = None,
+        df: pd.DataFrame = pd.DataFrame(),
         scaling_method: str = "MinMax",
         encoding_method: str = "OneHot_drop_binary",
     ):
@@ -44,10 +45,12 @@ class CsvCatalog(DataCatalog):
         self._immutables = immutables
         self._target = target
 
-        # Load the raw data
-        raw = pd.read_csv(file_path)
+        if (df.empty):
+            # Load the raw data
+            raw = pd.read_csv(file_path)
+        else:
+            raw = df
         train_raw, test_raw = train_test_split(raw)
-
         super().__init__(
             "custom", raw, train_raw, test_raw, scaling_method, encoding_method
         )

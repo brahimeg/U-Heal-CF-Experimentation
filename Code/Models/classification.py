@@ -47,7 +47,7 @@ def classifier_evaluation(features, remissions, cv=10, repetitions=10, assessmen
 
     aucs = np.zeros([repetitions, len(classifiers)])    
         
-    X, Y, subjects = compute_classifier_inputs(features, remissions, assessments,
+    X, Y, subjects, X_df = compute_classifier_inputs(features, remissions, assessments,
                           criterion, static_feature_types, feature_visits, 
                           label_visit, missing_values)
 

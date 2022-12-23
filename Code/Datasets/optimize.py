@@ -570,6 +570,7 @@ def compute_classifier_inputs(features, remissions, assessments=['PANNS'],
 
     X = pd.concat(temp_features, axis=1)
     subjects = X.index
+    X_df = X.copy()
     
     if missing_values == 'remove':
         X = X.dropna()
@@ -584,7 +585,7 @@ def compute_classifier_inputs(features, remissions, assessments=['PANNS'],
     
     Y = Y.values
 
-    return X, Y, subjects
+    return X, Y, subjects, X_df
 
 
 def compute_LSTM_inputs(features, remission, feature_types=['ALL'],

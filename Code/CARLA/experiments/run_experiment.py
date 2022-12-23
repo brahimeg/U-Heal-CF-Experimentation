@@ -18,7 +18,7 @@ import numpy as np
 import yaml
 from tensorflow import Graph, Session
 
-import carla.evaluation.catalog as evaluation_catalog
+import CARLA.carla.evaluation.catalog as evaluation_catalog
 from CARLA.carla.data.api import Data
 from CARLA.carla.data.catalog import OnlineCatalog
 from CARLA.carla.evaluation import Benchmark
