@@ -228,7 +228,7 @@ def read_demographics(data_path: str, demographics: dict, include_missing=False)
     demo_info = demo_info.sort_index()
     demo_info = demo_info.astype('float32')
 
-    return demo_info
+    return demo_info[list(demographics.keys())]
 
 
 def read_static_features(data_path, static_feature_types: dict, include_missing=False) -> dict:
@@ -585,8 +585,7 @@ def compute_classifier_inputs(features, remissions, assessments=['PANNS'],
     
     Y = Y.values
 
-    return X, Y, subjects, X_df
-
+    return X, Y, subjects, pd.DataFrame(X, columns=X_df.columns)
 
 def compute_LSTM_inputs(features, remission, feature_types=['ALL'],
                         feature_visits=['2'], label_visits=['5'],

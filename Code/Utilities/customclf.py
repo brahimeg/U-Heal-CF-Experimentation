@@ -11,6 +11,7 @@ import torch
 class CustomClf(MLModel):
     def __init__(self, data, clf, fit_full_data=False):
         super().__init__(data)
+        self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         self._X = self.data.df[list(set(self.data.df_train.columns) - {self.data.target})]
         self._y = self.data.df[self.data.target]
@@ -96,6 +97,12 @@ class CustomClf(MLModel):
     # the prediction as class probabilities
     def predict_proba(self, x):
         try:
-            return self._mymodel.predict_proba(x)
-        except RuntimeError:
-            return torch.tensor(self._mymodel.predict_proba(x.detach().numpy())).float()
+            if type(x) == torch.Tensor:
+                return torch.Tensor(self._mymodel.predict_proba(x.cpu())).to(self._device)
+            else:
+                return self._mymodel.predict_proba(x)
+        except:
+            if type(x) == torch.Tensor:
+                return torch.tensor(self._mymodel.predict_proba(x.cpu().detach().numpy())).float().to(self._device)
+            else:
+                return self._mymodel.predict_proba(x.cpu())

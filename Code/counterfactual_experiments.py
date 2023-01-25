@@ -3,7 +3,8 @@ from CARLA.carla.models.negative_instances import predict_negative_instances
 from CARLA.carla.recourse_methods import *
 from IPython.display import display
 from Utilities.customclf import CustomClf
-from Utilities.carla_utilities import determine_feature_types, run_benchmark, make_test_benchmark
+from CARLA.carla.plotting.plotting import summary_plot, single_sample_plot
+from Utilities.carla_utilities import determine_feature_types, run_benchmark, make_test_benchmark, generate_batch_counterfactuals, generate_batch_counterfactuals_single_sample
 from Datasets.optimize import compute_classifier_inputs
 from Datasets.optimize import read_dynamic_features, feature_extraction
 from Datasets.optimize import compute_output_labels, read_static_features
@@ -17,6 +18,8 @@ from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
 from sklearn.naive_bayes import GaussianNB
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
+import seaborn as sns
+import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import warnings, os, json, torch
@@ -73,8 +76,8 @@ dynamic_features = read_dynamic_features(data_path, visits, assessments)
 
 features, static_feature_types = feature_extraction(dynamic_features, 
                                                     static_features=static_features, 
-                                            static_feature_types=static_feature_types, 
-                                            aggregation='union')
+                                                    static_feature_types=static_feature_types, 
+                                                    aggregation='union')
 
 remissions = compute_output_labels(dynamic_features, labels=criteria)
 
@@ -86,13 +89,13 @@ X, Y, subjects, X_df = compute_classifier_inputs(features, remissions, assessmen
 ############################### CLASSIFICATION ################################
 classifiers = [
             # LogisticRegression(),
-            # SVC(kernel="linear"),
+            # SVC(kernel="linear", probability=True),
             # SVC(probability=True),
-            # KNeighborsClassifier(),
+            KNeighborsClassifier(),
             # MLPClassifier(),
             # DecisionTreeClassifier(),
             # RandomForestClassifier(),
-            AdaBoostClassifier(),
+            # AdaBoostClassifier(),
             # GradientBoostingClassifier(),
             # GaussianNB(),
             ]
@@ -114,8 +117,8 @@ best_classifier = classifiers[np.argmax(average_aucs[:,0])]
 print(best_classifier)
 
 # Prepare and create carala dataset  
-continuous, categorical, immutable = determine_feature_types(X_df, static_feature_types, assessments)
-X_df.columns = [str(x) for x in list(X_df.columns)]
+X_df, continuous, categorical, immutable, translation_dict = determine_feature_types(X_df, static_feature_types, assessments, 
+                                                                               use_orginal_column_names=True)
 X_df['Y'] = Y
 dataset = CsvCatalog(df=X_df,
                      continuous=continuous,
@@ -128,20 +131,22 @@ model = CustomClf(dataset, clf=best_classifier, fit_full_data=True)
 
 # predict negative instances to flip later on using one of the counterfactual generation methods
 factuals = predict_negative_instances(model, model.X)
-test_factual = factuals.iloc[:5]
+# TODO: figure out why the reset was needed (it messess with subject filtering if we do it)
+# factuals = predict_negative_instances(model, model.X).reset_index(drop=True)
+print(len(factuals))
 
-face_eps_hyperparameters = {'mode':'epsilon', 'fraction': 0.1}
+face_eps_hyperparameters = {'mode':'epsilon', 'fraction': 0.05}
 face_knn_hyperparameters = {'mode':'knn', 'fraction': 0.2}
 revise_hyperparameters = {
         "data_name": 'test_data',
         "lambda": 0.5,
         "optimizer": "adam",
         "lr": 0.1,
-        "max_iter": 1000,
+        "max_iter": 5,
         "target_class": [0, 1],
         "binary_cat_features": True,
         "vae_params": {
-            "layers": [628, 314, 25],
+            "layers": [51, 26, 13],
             "train": True,
             "lambda_reg": 1e-6,
             "epochs": 20,
@@ -152,12 +157,52 @@ revise_hyperparameters = {
 dice_hyperparamters = {"num": 1, "desired_class": 1, "posthoc_sparsity_param": 0.1}
 
 # init one of the recourse method and make benchmark object (Revise without a descent gpu is very slow)
-recourse_method = Revise(model, dataset, revise_hyperparameters)
-recourse_method = GrowingSpheres(model)
-recourse_method = Face(model, hyperparams=face_eps_hyperparameters)
-recourse_method = Face(model, hyperparams=face_knn_hyperparameters)
-recourse_method = Dice(model, hyperparams=dice_hyperparamters)
+recourse_methods = [('face_eps', Face(model, hyperparams=face_eps_hyperparameters)),
+                    ('face_knn', Face(model, hyperparams=face_knn_hyperparameters)),
+                    ('revise', Revise(model, dataset, revise_hyperparameters)), 
+                    ('gs', GrowingSpheres(model))]
+                    # ('dice', Dice(model, hyperparams=dice_hyperparamters))]
 
-benchmark = Benchmark(model, recourse_method, test_factual)
-df_bench, metrics = run_benchmark(benchmark)
-display(df_bench)
+
+# generate n counterfactuals for each sample
+# batch_ces = generate_batch_counterfactuals(Revise(model, dataset, revise_hyperparameters), factuals[10:11], 10)
+subject = factuals.index[10]
+try:
+    all_results = []
+    for name, recourse_method in recourse_methods:
+        print(name)
+        try:
+            ces, summuary_plot, single_plots = generate_batch_counterfactuals_single_sample(dataset, 
+                                                                recourse_method, 
+                                                                factuals.filter(items=[subject], axis=0), 30, 5, 
+                                                                return_plot=True)
+            sample_factuals = pd.DataFrame(np.repeat(factuals.filter(items=[subject], axis=0).values, len(ces), axis=0), columns=factuals.columns)
+            benchmark = Benchmark(model, recourse_method, sample_factuals, ces)
+            df_bench, metrics = run_benchmark(benchmark)
+            all_results.append(df_bench[['L0_distance', 'L1_distance', 'L2_distance']])
+        except Exception as e:
+            print(f'Method {name} was skipped due to :{str(e)}')
+            continue
+
+    distances = pd.concat(all_results, keys=list(zip(*recourse_methods))[0])
+    distances.index.names = ['method', 'index']
+    distances.reset_index(level='method', inplace=True)
+    distances.reset_index(inplace=True, drop=True)
+    
+    sns.boxplot(data = distances, x = 'L0_distance', y='method')
+    sns.stripplot(data = distances, x = 'L0_distance', y='method',
+                    color = 'black',
+                    alpha = 0.3)
+    sns.boxplot(data = distances, x = 'L1_distance', y='method')
+    sns.stripplot(data = distances, x = 'L1_distance', y='method',
+                    color = 'black',
+                    alpha = 0.3)
+    sns.boxplot(data = distances, x = 'L2_distance', y='method')
+    sns.stripplot(data = distances, x = 'L2_distance', y='method',
+                    color = 'black',
+                    alpha = 0.3)  
+except ValueError as e:
+    if str(e) == 'Empty data passed with indices specified.':
+        print("Subject not in DATASET!")
+    else:
+        raise(e)

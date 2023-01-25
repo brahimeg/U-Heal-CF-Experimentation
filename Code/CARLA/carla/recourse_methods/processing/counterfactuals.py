@@ -42,8 +42,15 @@ def check_counterfactuals(
         )
     else:
         df_cfs = counterfactuals.copy()
-
-    df_cfs[mlmodel.data.target] = np.argmax(mlmodel.predict_proba(df_cfs), axis=1)
+    
+    # This piece of code was added to deal with scenario in which not CE's were generated (all nan)
+    nan_rows = df_cfs[df_cfs.isna().any(axis=1)]
+    nan_rows[mlmodel.data.target] = 0
+    df_cfs = df_cfs[df_cfs.isna().any(axis=1) == False]
+    if df_cfs.empty == False:
+        df_cfs[mlmodel.data.target] = np.argmax(mlmodel.predict_proba(df_cfs), axis=1)
+    df_cfs = df_cfs.append(nan_rows).sort_index()
+    
     # Change all wrong counterfactuals to nan
     df_cfs.loc[df_cfs[mlmodel.data.target] == negative_label, :] = np.nan
 

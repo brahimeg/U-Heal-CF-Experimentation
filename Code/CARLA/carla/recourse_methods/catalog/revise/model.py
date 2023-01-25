@@ -112,6 +112,7 @@ class Revise(RecourseMethod):
         self._max_iter = self._params["max_iter"]
         self._target_class = self._params["target_class"]
         self._binary_cat_features = self._params["binary_cat_features"]
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         vae_params = self._params["vae_params"]
         self.vae = VariationalAutoencoder(
@@ -120,7 +121,7 @@ class Revise(RecourseMethod):
 
         if vae_params["train"]:
             self.vae.fit(
-                xtrain=data.df[mlmodel.feature_input_order],
+                xtrain=torch.tensor(data.df[mlmodel.feature_input_order].values).to(device),
                 lambda_reg=vae_params["lambda_reg"],
                 epochs=vae_params["epochs"],
                 lr=vae_params["lr"],
@@ -163,7 +164,7 @@ class Revise(RecourseMethod):
 
         list_cfs = []
         for query_instance in test_loader:
-            query_instance = query_instance.float()
+            query_instance = query_instance.float().to(device)
 
             target = torch.FloatTensor(self._target_class).to(device)
             target_prediction = np.argmax(np.array(self._target_class))

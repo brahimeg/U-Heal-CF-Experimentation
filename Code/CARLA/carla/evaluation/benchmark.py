@@ -31,6 +31,7 @@ class Benchmark:
         mlmodel: MLModel,
         recourse_method: RecourseMethod,
         factuals: pd.DataFrame,
+        counterfactuals: pd.DataFrame = pd.DataFrame()
     ) -> None:
 
         self.mlmodel = mlmodel
@@ -38,7 +39,10 @@ class Benchmark:
         self._factuals = self.mlmodel.get_ordered_features(factuals.copy())
 
         start = timeit.default_timer()
-        self._counterfactuals = recourse_method.get_counterfactuals(factuals)
+        if counterfactuals.empty:
+            self._counterfactuals = recourse_method.get_counterfactuals(factuals)
+        else:
+            self._counterfactuals = counterfactuals
         stop = timeit.default_timer()
         self.timer = stop - start
 

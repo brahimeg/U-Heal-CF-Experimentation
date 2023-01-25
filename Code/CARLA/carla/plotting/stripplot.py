@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import matplotlib.ticker as plticker
 import numpy as np
+import pandas as pd
 import seaborn as sns
 
 
@@ -21,19 +22,19 @@ def stripplot(diff, factuals, ax):
     """
     jitter = 0.3
     delta = np.random.uniform(-jitter / 2, jitter / 2, len(diff.melt()["value"]))
-
     """
     Create the figure
     """
     sns.stripplot(
-        x=diff.melt()["value"] + delta,
+        x= diff.melt()["value"] + delta,
         y=diff.melt()["variable"],
-        hue=factuals.melt()["value"],
+        hue=diff.melt()["value"],
         palette="seismic",
         jitter=jitter,
         alpha=0.5,
         s=7,
         ax=ax,
+        edgecolor="black"
     )
 
     ax.set_xlabel("change")

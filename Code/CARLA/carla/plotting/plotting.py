@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 from .barplot import barplot
 from .stripplot import stripplot
 from .swarmplot import swarmplot
+from IPython.display import display
+
 
 
 def _most_important_features(diff, topn):
@@ -53,10 +55,14 @@ def single_sample_plot(factual, counterfactual, data, figsize=(7, 7)):
 
     # Compute difference
     diff = counterfactual - factual
-    barplot(diff[cont_cols + cat_cols], ax)
+    plot_diff = diff[cont_cols + cat_cols]
+    plot_diff = plot_diff[plot_diff != 0]
+    barplot(plot_diff, ax)
+    return fig
 
 
-def summary_plot(factuals, counterfactuals, data, topn=5, figsize=(15, 7)):
+
+def summary_plot(factuals, counterfactuals, data, topn=5, figsize=(15, 7), return_plot=False):
     """
     Create a swarmplot for the continuous features, and a stripplot for the categorical features.
 
@@ -100,3 +106,5 @@ def summary_plot(factuals, counterfactuals, data, topn=5, figsize=(15, 7)):
     fig.set_size_inches(figsize[0], figsize[1])
 
     plt.subplots_adjust(wspace=1.0)
+    
+    return fig
