@@ -133,7 +133,7 @@ class CRUD(RecourseMethod):
         factuals = pd.concat(
             [
                 self._mlmodel.get_ordered_features(factuals),
-                factuals[self._mlmodel.data.target],
+                self._mlmodel.data.df.Y.loc[factuals.index],
             ],
             axis=1,
         )

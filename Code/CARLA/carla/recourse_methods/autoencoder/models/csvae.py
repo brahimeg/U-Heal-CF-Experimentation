@@ -13,7 +13,6 @@ from tqdm import trange
 from CARLA.carla import log
 from CARLA.carla.recourse_methods.autoencoder.losses import csvae_loss
 from CARLA.carla.recourse_methods.autoencoder.save_load import get_home
-
 tf.compat.v1.disable_eager_execution()
 
 
@@ -102,8 +101,18 @@ class CSVAE(nn.Module):
         self.mutable_mask = mutable_mask
 
     def q_zw(self, x, y):
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        x = x.to(device)
+        y = y.to(device)
         xy = torch.cat([x, y], dim=1)
-
+        if device == "cuda":
+            self.mu_x_to_z.cuda()
+            self.logvar_x_to_z.cuda()
+            self.mu_xy_to_w.cuda()
+            self.logvar_xy_to_w.cuda()
+            self.mu_y_to_w.cuda()
+            self.logvar_y_to_w.cuda()
+            
         z_mu = self.mu_x_to_z(x)
         z_logvar = self.logvar_x_to_z(x)
 
@@ -123,18 +132,21 @@ class CSVAE(nn.Module):
         )
 
     def p_x(self, z, w):
-        zw = torch.cat([z, w], dim=1)
-
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        zw = torch.cat([z.to(device), w.to(device)], dim=1).to(device)
+        if device == "cuda":
+            self.mu_zw_to_x.cuda()
+            self.logvar_zw_to_x.cuda()
         mu = self.mu_zw_to_x(zw)
         logvar = self.logvar_zw_to_x(zw)
 
         return mu, logvar
 
     def forward(self, x, y):
-
+        device = "cuda" if torch.cuda.is_available() else "cpu"
         # split up the input in a mutable and immutable part
-        x = x.clone()
-        x_mutable = x[:, self.mutable_mask]
+        x = x.clone().to(device)
+        x_mutable = x[:, self.mutable_mask].to(device)
         x_immutable = x[:, ~self.mutable_mask]
 
         (
@@ -150,11 +162,13 @@ class CSVAE(nn.Module):
         z = self.reparameterize(z_mu, z_logvar)
 
         # concatenate the immutable part to the latents
-        z = torch.cat([z, x_immutable], dim=-1)
+        z = torch.cat([z, x_immutable], dim=-1).to(device)
 
-        zw = torch.cat([z, w_encoder], dim=1)
+        zw = torch.cat([z, w_encoder], dim=1).to(device)
 
         x_mu, x_logvar = self.p_x(z, w_encoder)
+        if device == "cuda":
+            self.decoder_z_to_y.cuda()
         y_pred = self.decoder_z_to_y(z)
 
         # add the immutable features to the reconstruction

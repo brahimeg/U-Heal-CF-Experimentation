@@ -5,7 +5,6 @@ import torch.distributions as dists
 from keras import backend as K
 from torch import nn
 
-
 def binary_crossentropy(y_true: np.ndarray, y_pred: np.ndarray) -> np.ndarray:
     return K.sum(K.binary_crossentropy(y_true, y_pred), axis=-1)
 
@@ -15,10 +14,11 @@ def mse(y_true: np.ndarray, y_pred: np.ndarray) -> np.ndarray:
 
 
 def csvae_loss(csvae, x_train, y_train):
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     x = x_train.clone()
-    x = x.float()
+    x = x.float().to(device)
     y = y_train.clone()
-    y = y.float()
+    y = y.float().to(device)
 
     (
         x_mu,
@@ -47,8 +47,8 @@ def csvae_loss(csvae, x_train, y_train):
         z_mu.flatten(), torch.diag(z_logvar.flatten().exp())
     )
     z_prior = dists.MultivariateNormal(
-        torch.zeros(csvae.z_dim * z_mu.size()[0]),
-        torch.eye(csvae.z_dim * z_mu.size()[0]),
+        torch.zeros(csvae.z_dim * z_mu.size()[0]).to(device),
+        torch.eye(csvae.z_dim * z_mu.size()[0]).to(device),
     )
     z_kl = dists.kl.kl_divergence(z_dist, z_prior)
 

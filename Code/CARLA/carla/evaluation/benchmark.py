@@ -29,17 +29,17 @@ class Benchmark:
     def __init__(
         self,
         mlmodel: MLModel,
-        recourse_method: RecourseMethod,
         factuals: pd.DataFrame,
+        recourse_method: RecourseMethod = None,
         counterfactuals: pd.DataFrame = pd.DataFrame()
     ) -> None:
 
         self.mlmodel = mlmodel
-        self._recourse_method = recourse_method
         self._factuals = self.mlmodel.get_ordered_features(factuals.copy())
 
         start = timeit.default_timer()
         if counterfactuals.empty:
+            self._recourse_method = recourse_method
             self._counterfactuals = recourse_method.get_counterfactuals(factuals)
         else:
             self._counterfactuals = counterfactuals

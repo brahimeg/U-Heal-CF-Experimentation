@@ -120,10 +120,10 @@ class CCHVAE(RecourseMethod):
         generative_model = VariationalAutoencoder(
             data_name, vae_params["layers"], mlmodel.get_mutable_mask()
         )
-
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         if vae_params["train"]:
             generative_model.fit(
-                xtrain=data[mlmodel.feature_input_order],
+                xtrain=torch.tensor(data[mlmodel.feature_input_order].values).to(device),
                 kl_weight=vae_params["kl_weight"],
                 lambda_reg=vae_params["lambda_reg"],
                 epochs=vae_params["epochs"],
@@ -191,7 +191,7 @@ class CCHVAE(RecourseMethod):
         z_rep = np.repeat(z.reshape(1, -1), self._n_search_samples, axis=0)
 
         # make copy such that we later easily combine the immutables and the reconstructed mutables
-        fact_rep = np.repeat(torch_fact.reshape(1, -1), self._n_search_samples, axis=0)
+        fact_rep = np.repeat(torch_fact.reshape(1, -1).cpu(), self._n_search_samples, axis=0).to(device)
 
         candidate_dist: List = []
         x_ce: Union[np.ndarray, torch.Tensor] = np.array([])

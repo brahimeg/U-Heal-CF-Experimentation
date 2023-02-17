@@ -12,6 +12,7 @@ class CustomClf(MLModel):
     def __init__(self, data, clf, fit_full_data=False):
         super().__init__(data)
         self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self._backend = 'pytorch'
 
         self._X = self.data.df[list(set(self.data.df_train.columns) - {self.data.target})]
         self._y = self.data.df[self.data.target]
@@ -81,13 +82,21 @@ class CustomClf(MLModel):
     # The ML framework the model was trained on
     @property
     def backend(self):
-        return "pytorch"
+        return self._backend 
+    
+    @backend.setter
+    def backend(self, x):
+        self._backend = x
 
     # The black-box model object
     @property
     def raw_model(self):
         return self._mymodel
-
+    
+    @property
+    def model_type(self):
+        return "ann"
+    
     # The predict function outputs
     # the continuous prediction of the model
     def predict(self, x):

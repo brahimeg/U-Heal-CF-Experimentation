@@ -4,7 +4,9 @@ from CARLA.carla.recourse_methods import *
 from IPython.display import display
 from Utilities.customclf import CustomClf
 from CARLA.carla.plotting.plotting import summary_plot, single_sample_plot
-from Utilities.carla_utilities import determine_feature_types, run_benchmark, make_test_benchmark, generate_batch_counterfactuals, generate_batch_counterfactuals_single_sample
+from Utilities.carla_utilities import determine_feature_types, run_benchmark, make_test_benchmark
+from Utilities.carla_utilities import generate_batch_counterfactuals_single_factual
+from Utilities.carla_utilities import generate_counterfactuals_for_batch_factuals
 from Datasets.optimize import compute_classifier_inputs
 from Datasets.optimize import read_dynamic_features, feature_extraction
 from Datasets.optimize import compute_output_labels, read_static_features
@@ -23,6 +25,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import warnings, os, json, torch
+from sklearn.ensemble import BaggingClassifier
 warnings.filterwarnings("ignore")
 
 
@@ -71,7 +74,7 @@ with open(os.path.join(data_path, 'daniel_static_features.json'),'r') as file_ob
 
 
 static_features = read_static_features(data_path, static_feature_types)
-           
+        
 dynamic_features = read_dynamic_features(data_path, visits, assessments)
 
 features, static_feature_types = feature_extraction(dynamic_features, 
@@ -105,26 +108,28 @@ classifier_names = ['LR', "LSVM", "RBF-SVM", "KNN", "MLP", "DT", "RF", "AdaBoost
 
 
 aucs = classifier_evaluation(features, remissions, cv=10, repetitions=repetitions, assessments=assessments,
-                          static_feature_types=static_feature_types, criterion=remission_criterion,
-                          feature_visits=feature_visits, label_visit=label_visit, missing_values='impute',
-                          classifiers=classifiers, classifier_names=classifier_names)
+                        static_feature_types=static_feature_types, criterion=remission_criterion,
+                        feature_visits=feature_visits, label_visit=label_visit, missing_values='impute',
+                        classifiers=classifiers, classifier_names=classifier_names)
 
 ############################### COUNTERFACTUAL ################################
 
 # Choose best classifier and continue
 average_aucs = np.array([(np.mean(aucs[:,i]),np.std(aucs[:,i])) for i in range(len(classifiers))])
 best_classifier = classifiers[np.argmax(average_aucs[:,0])]
+# best_classifier = BaggingClassifier(best_classifier,n_estimators=10, random_state=0)
 print(best_classifier)
 
 # Prepare and create carala dataset  
 X_df, continuous, categorical, immutable, translation_dict = determine_feature_types(X_df, static_feature_types, assessments, 
-                                                                               use_orginal_column_names=True)
+                                                                            use_orginal_column_names=True)
+muttable =list(set(continuous+categorical) - set(immutable))
 X_df['Y'] = Y
 dataset = CsvCatalog(df=X_df,
-                     continuous=continuous,
-                     categorical=categorical,
-                     immutables=immutable,
-                     target='Y')
+                    continuous=continuous,
+                    categorical=categorical,
+                    immutables=immutable,
+                    target='Y')
 
 # Create custom classifier using carla interfaca
 model = CustomClf(dataset, clf=best_classifier, fit_full_data=True)
@@ -135,56 +140,43 @@ factuals = predict_negative_instances(model, model.X)
 # factuals = predict_negative_instances(model, model.X).reset_index(drop=True)
 print(len(factuals))
 
-face_eps_hyperparameters = {'mode':'epsilon', 'fraction': 0.05}
-face_knn_hyperparameters = {'mode':'knn', 'fraction': 0.2}
-revise_hyperparameters = {
-        "data_name": 'test_data',
-        "lambda": 0.5,
-        "optimizer": "adam",
-        "lr": 0.1,
-        "max_iter": 5,
-        "target_class": [0, 1],
-        "binary_cat_features": True,
-        "vae_params": {
-            "layers": [51, 26, 13],
-            "train": True,
-            "lambda_reg": 1e-6,
-            "epochs": 20,
-            "lr": 1e-3,
-            "batch_size": 8,
-        }
-    }
-dice_hyperparamters = {"num": 1, "desired_class": 1, "posthoc_sparsity_param": 0.1}
+# read in default hyperparameters for recourse methods
+if ('Code' in os.getcwd()):
+    hyper_params_path = os.path.join(os.getcwd(), 'Utilities', 'carla_hyper_parameters.json')
+else:
+    hyper_params_path = os.path.join(os.getcwd(), 'Code', 'Utilities', 'carla_hyper_parameters.json')
+hyper_parameters = json.load(open(hyper_params_path))
 
 # init one of the recourse method and make benchmark object (Revise without a descent gpu is very slow)
-recourse_methods = [('face_eps', Face(model, hyperparams=face_eps_hyperparameters)),
-                    ('face_knn', Face(model, hyperparams=face_knn_hyperparameters)),
-                    ('revise', Revise(model, dataset, revise_hyperparameters)), 
-                    ('gs', GrowingSpheres(model))]
-                    # ('dice', Dice(model, hyperparams=dice_hyperparamters))]
-
+recourse_methods = [
+                    # ('face_eps', Face(model, hyperparams=face_eps_hyperparameters)),
+                    # ('face_knn', Face(model, hyperparams=face_knn_hyperparameters)),
+                    ('revise', Revise(model, dataset, hyper_parameters['revise'])), 
+                    ('gs', GrowingSpheres(model, hyper_parameters['gs'])),
+                    ('dice', Dice(model, hyperparams=hyper_parameters['dice']))]
 
 # generate n counterfactuals for each sample
-# batch_ces = generate_batch_counterfactuals(Revise(model, dataset, revise_hyperparameters), factuals[10:11], 10)
 subject = factuals.index[10]
 try:
     all_results = []
+    methods_used = list(list(zip(*recourse_methods))[0])
     for name, recourse_method in recourse_methods:
         print(name)
         try:
-            ces, summuary_plot, single_plots = generate_batch_counterfactuals_single_sample(dataset, 
+            ces, summuary_plot, single_plots = generate_batch_counterfactuals_single_factual(dataset, 
                                                                 recourse_method, 
-                                                                factuals.filter(items=[subject], axis=0), 30, 5, 
+                                                                factuals.filter(items=[subject], axis=0), 10, 5, 
                                                                 return_plot=True)
             sample_factuals = pd.DataFrame(np.repeat(factuals.filter(items=[subject], axis=0).values, len(ces), axis=0), columns=factuals.columns)
-            benchmark = Benchmark(model, recourse_method, sample_factuals, ces)
+            benchmark = Benchmark(model, sample_factuals,recourse_method, ces)
             df_bench, metrics = run_benchmark(benchmark)
             all_results.append(df_bench[['L0_distance', 'L1_distance', 'L2_distance']])
         except Exception as e:
+            methods_used.remove(name)
             print(f'Method {name} was skipped due to :{str(e)}')
             continue
 
-    distances = pd.concat(all_results, keys=list(zip(*recourse_methods))[0])
+    distances = pd.concat(all_results, keys=methods_used)
     distances.index.names = ['method', 'index']
     distances.reset_index(level='method', inplace=True)
     distances.reset_index(inplace=True, drop=True)
@@ -206,3 +198,31 @@ except ValueError as e:
         print("Subject not in DATASET!")
     else:
         raise(e)
+
+
+test_factuals = factuals[2:10]
+test_factuals
+
+# cchvae = CCHVAE(model, hyper_parameters['cchvae'])
+# cf = cchvae.get_counterfactuals(test_factuals)
+
+crud = CRUD(model, hyper_parameters['crud'])
+cf = crud.get_counterfactuals(test_factuals)
+cf
+
+single_sample_plot(test_factuals.iloc[0], cf.iloc[1], dataset, figsize=(7,5))
+
+revise_cfs, gs_cfs, dice_cfs = generate_counterfactuals_for_batch_factuals(model, 
+                                                                            hyper_parameters, 
+                                                                            test_factuals, 
+                                                                            2)         
+display(gs_cfs)
+display(revise_cfs)
+display(dice_cfs)
+
+model.predict_proba(test_factuals.loc[revise_cfs.index])
+model.predict_proba(revise_cfs)
+
+benchmark = Benchmark(mlmodel=model, factuals=test_factuals.loc[dice_cfs.index], counterfactuals=dice_cfs)
+df_bench, metrics = run_benchmark(benchmark)
+display(df_bench)

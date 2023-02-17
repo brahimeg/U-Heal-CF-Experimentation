@@ -2,6 +2,7 @@ from typing import Dict, Optional
 
 import dice_ml
 import pandas as pd
+import numpy as np
 
 from CARLA.carla.models.api import MLModel
 from CARLA.carla.recourse_methods.processing import check_counterfactuals
@@ -62,6 +63,7 @@ class Dice(RecourseMethod):
         self._categorical = mlmodel.data.categorical
         self._target = mlmodel.data.target
         self._model = mlmodel
+        self._immutables = mlmodel.data.immutables
 
         checked_hyperparams = merge_default_parameters(
             hyperparams, self._DEFAULT_HYPERPARAMS
@@ -90,16 +92,30 @@ class Dice(RecourseMethod):
             raise ValueError("Factuals should not be empty")
 
         # Generate counterfactuals
-        dice_exp = self._dice.generate_counterfactuals(
-            querry_instances,
-            total_CFs=self._num,
-            desired_class=self._desired_class,
-            posthoc_sparsity_param=self._post_hoc_sparsity_param,
-        )
-
-        list_cfs = dice_exp.cf_examples_list
-        df_cfs = pd.concat([cf.final_cfs_df for cf in list_cfs], ignore_index=True)
-        df_cfs.drop(columns=['Y'], axis=1, inplace=True)
+        features_to_vary = []
+        muttables = list(set(self._categorical+self._continuous) - set(self._immutables))
+        for x in self._dice_data.feature_names:
+            if 'lifestyle' in x:
+                features_to_vary.append(x)
+        # try except needed in case none of the factuals have counterfactuals
+        try:
+            dice_exp = self._dice.generate_counterfactuals(
+                querry_instances,
+                total_CFs=self._num,
+                desired_class=self._desired_class,
+                posthoc_sparsity_param=self._post_hoc_sparsity_param,
+                features_to_vary=features_to_vary
+            )
+            list_cfs = dice_exp.cf_examples_list
+            df_cfs = pd.concat([cf.final_cfs_df for cf in list_cfs], ignore_index=True)
+            df_cfs.drop(columns=['Y'], axis=1, inplace=True)
+        except Exception as e:
+            if str(e) == 'No counterfactuals found for any of the query points! Kindly check your configuration.':
+                print(e)
+                df_cfs = factuals.copy()
+                df_cfs.loc[:] = np.nan
+            else:
+                raise(e)
         df_cfs = check_counterfactuals(self._mlmodel, df_cfs, factuals.index)
         df_cfs = self._mlmodel.get_ordered_features(df_cfs)
         return df_cfs
