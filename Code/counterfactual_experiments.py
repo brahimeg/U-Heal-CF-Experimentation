@@ -24,7 +24,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
-import warnings, os, json, torch
+import warnings, os, json, torch, gower
 from sklearn.ensemble import BaggingClassifier
 warnings.filterwarnings("ignore")
 
@@ -151,11 +151,11 @@ hyper_parameters = json.load(open(hyper_params_path))
 recourse_methods = [
                     # ('face_eps', Face(model, hyperparams=face_eps_hyperparameters)),
                     # ('face_knn', Face(model, hyperparams=face_knn_hyperparameters)),
-                    ('revise', Revise(model, dataset, hyper_parameters['revise'])), 
+                    # ('revise', Revise(model, dataset, hyper_parameters['revise'])), 
                     ('gs', GrowingSpheres(model, hyper_parameters['gs'])),
                     ('dice', Dice(model, hyperparams=hyper_parameters['dice']))]
 
-# generate n counterfactuals for each sample
+# # generate n counterfactuals for each sample
 subject = factuals.index[10]
 try:
     all_results = []
@@ -200,17 +200,13 @@ except ValueError as e:
         raise(e)
 
 
-test_factuals = factuals[2:10]
-test_factuals
+test_factuals = factuals[0:10]
+test_factuals.sort_index()
+ng = NaiveGower(model, hyper_parameters['naive_gower'])
+cf = ng.get_counterfactuals(test_factuals)
+single_sample_plot(test_factuals.loc[32], cf.loc[32], dataset, figsize=(7,5))
 
-# cchvae = CCHVAE(model, hyper_parameters['cchvae'])
-# cf = cchvae.get_counterfactuals(test_factuals)
 
-crud = CRUD(model, hyper_parameters['crud'])
-cf = crud.get_counterfactuals(test_factuals)
-cf
-
-single_sample_plot(test_factuals.iloc[0], cf.iloc[1], dataset, figsize=(7,5))
 
 revise_cfs, gs_cfs, dice_cfs = generate_counterfactuals_for_batch_factuals(model, 
                                                                             hyper_parameters, 
@@ -220,9 +216,10 @@ display(gs_cfs)
 display(revise_cfs)
 display(dice_cfs)
 
-model.predict_proba(test_factuals.loc[revise_cfs.index])
-model.predict_proba(revise_cfs)
+# model.predict_proba(test_factuals.loc[revise_cfs.index])
+# model.predict_proba(revise_cfs)
 
-benchmark = Benchmark(mlmodel=model, factuals=test_factuals.loc[dice_cfs.index], counterfactuals=dice_cfs)
-df_bench, metrics = run_benchmark(benchmark)
-display(df_bench)
+# benchmark = Benchmark(mlmodel=model, factuals=test_factuals.loc[dice_cfs.index], counterfactuals=dice_cfs)
+# df_bench, metrics = run_benchmark(benchmark)
+# display(df_bench)
+

@@ -28,7 +28,7 @@ class CustomClf(MLModel):
         self._feature_input_order.sort()
         
         # order data (column-wise) before training
-        self._X =  self._X_train[self._feature_input_order]
+        self._X =  self._X[self._feature_input_order]
         self._X_train = self._X_train[self._feature_input_order]
         self._X_test = self._X_test[self._feature_input_order]
 

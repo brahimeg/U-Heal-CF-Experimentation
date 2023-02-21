@@ -15,5 +15,6 @@ from .catalog import (
     GrowingSpheres,
     Revise,
     Roar,
-    Wachter,
+    Wachter, 
+    NaiveGower
 )

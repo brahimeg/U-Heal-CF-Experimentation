@@ -37,6 +37,7 @@
         "posthoc_sparsity_param": 0.3
     },
     "gs": null,
+    "naive_gower": {"retries": 50},
     "focus": {
         "optimizer": "adam",
         "lr": 0.001,
