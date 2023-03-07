@@ -6,8 +6,6 @@ import pandas as pd
 from CARLA.carla.evaluation.api import Evaluation
 from CARLA.carla.models.api import MLModel
 from CARLA.carla.recourse_methods.api import RecourseMethod
-
-
 class Benchmark:
     """
     The benchmarking class contains all measurements.
@@ -67,5 +65,5 @@ class Benchmark:
         ]
 
         output = pd.concat(pipeline, axis=1)
-
+        output.index = self._counterfactuals.dropna().index
         return output

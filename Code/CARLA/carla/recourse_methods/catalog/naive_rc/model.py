@@ -13,6 +13,17 @@ from CARLA.carla.recourse_methods.processing import (
 )
 
 class NaiveGower(RecourseMethod):
+    """_summary_
+
+    Args:
+        RecourseMethod (_type_): _description_
+
+    Raises:
+        ValueError: _description_
+
+    Returns:
+        _type_: _description_
+    """
     _DEFAULT_HYPERPARAMS = {"retries": 0}
 
     def __init__(self, mlmodel: MLModel, hyperparams=None) -> None:
@@ -42,12 +53,15 @@ class NaiveGower(RecourseMethod):
 
     def get_counterfactuals(self, factuals: pd.DataFrame) -> pd.DataFrame:
         factuals = self._mlmodel.get_ordered_features(factuals)
-        # TODO: check wheter full data was fitted and adjust accordingly
-        full_immutable_dataset = self._mlmodel.X[self._immutables].copy()
+        if self._mlmodel._fit_full_data:
+            full_dataset = self._mlmodel.X.copy()
+        else:
+            full_dataset = self._mlmodel.X_train.copy()
+        full_immutable_dataset = full_dataset[self._immutables].copy()
         cat_features = [x in self._mlmodel.data.encoder.get_feature_names_out(self._mlmodel.data.categorical) for x in full_immutable_dataset.columns]
         matrix = gower_matrix(full_immutable_dataset, cat_features=cat_features)
-        positive_indices = list(set(self._mlmodel.X.index) - set(predict_negative_instances(self._mlmodel, self._mlmodel.X).index))
-        positive_factuals = self._mlmodel.X.loc[positive_indices].copy()
+        positive_indices = list(set(full_dataset.index) - set(predict_negative_instances(self._mlmodel, full_dataset).index))
+        positive_factuals = full_dataset.loc[positive_indices].copy()
         positive_factuals = self._mlmodel.get_ordered_features(positive_factuals)
         list_cfs = []
         for index, value in factuals.iterrows():

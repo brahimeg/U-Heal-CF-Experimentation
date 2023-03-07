@@ -13,6 +13,7 @@ class CustomClf(MLModel):
         super().__init__(data)
         self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self._backend = 'pytorch'
+        self._fit_full_data = fit_full_data
 
         self._X = self.data.df[list(set(self.data.df_train.columns) - {self.data.target})]
         self._y = self.data.df[self.data.target]
@@ -33,7 +34,7 @@ class CustomClf(MLModel):
         self._X_test = self._X_test[self._feature_input_order]
 
         self._mymodel = Pipeline([('transformer', StandardScaler()), ('estimator', clf)])
-        if fit_full_data:
+        if self._fit_full_data:
             rand_idx = np.random.permutation(self._X.shape[0])
             self._X = self._X.iloc[rand_idx,:]
             self._y = self._y.iloc[rand_idx]

@@ -2,4 +2,5 @@
 .venv
 .env
 *.pyc
+test_file.py
 Data/Optimise/Results/*

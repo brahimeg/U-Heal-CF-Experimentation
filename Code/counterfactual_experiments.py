@@ -2,11 +2,15 @@ from CARLA.carla.evaluation import Benchmark
 from CARLA.carla.models.negative_instances import predict_negative_instances
 from CARLA.carla.recourse_methods import *
 from IPython.display import display
+from datetime import datetime
 from Utilities.customclf import CustomClf
+from Plotting.plots import box_plot_benchmark_multiple_rc_methods
 from CARLA.carla.plotting.plotting import summary_plot, single_sample_plot
-from Utilities.carla_utilities import determine_feature_types, run_benchmark, make_test_benchmark
+from Utilities.carla_utilities import determine_feature_types, run_benchmark
 from Utilities.carla_utilities import generate_batch_counterfactuals_single_factual
+from Utilities.carla_utilities import save_all_data_and_parameters
 from Utilities.carla_utilities import generate_counterfactuals_for_batch_factuals
+from Utilities.carla_utilities import NpEncoder
 from Datasets.optimize import compute_classifier_inputs
 from Datasets.optimize import read_dynamic_features, feature_extraction
 from Datasets.optimize import compute_output_labels, read_static_features
@@ -22,9 +26,10 @@ from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
 import seaborn as sns
 import matplotlib.pyplot as plt
+import pickle, time
 import pandas as pd
 import numpy as np
-import warnings, os, json, torch, gower
+import warnings, os, json
 from sklearn.ensemble import BaggingClassifier
 warnings.filterwarnings("ignore")
 
@@ -36,6 +41,7 @@ else:
     base_path = os.path.join(os.getcwd(), 'Data', 'Optimise')
 data_path = base_path + '\\'
 save_path = os.path.join(base_path, 'Results', 'Classifiers')
+carla_save_path = os.path.join(base_path, 'Results', 'Counterfactuals')
 
 if not os.path.isdir(os.path.join(base_path, 'Results')):
     os.mkdir(os.path.join(base_path, 'Results'))
@@ -93,8 +99,8 @@ X, Y, subjects, X_df = compute_classifier_inputs(features, remissions, assessmen
 classifiers = [
             # LogisticRegression(),
             # SVC(kernel="linear", probability=True),
-            # SVC(probability=True),
-            KNeighborsClassifier(),
+            SVC(probability=True),
+            # KNeighborsClassifier(),
             # MLPClassifier(),
             # DecisionTreeClassifier(),
             # RandomForestClassifier(),
@@ -107,7 +113,7 @@ classifier_names = ['LR', "LSVM", "RBF-SVM", "KNN", "MLP", "DT", "RF", "AdaBoost
                     'GB', "NB"]
 
 
-aucs = classifier_evaluation(features, remissions, cv=10, repetitions=repetitions, assessments=assessments,
+aucs = classifier_evaluation(features, remissions, cv=5, repetitions=repetitions, assessments=assessments,
                         static_feature_types=static_feature_types, criterion=remission_criterion,
                         feature_visits=feature_visits, label_visit=label_visit, missing_values='impute',
                         classifiers=classifiers, classifier_names=classifier_names)
@@ -117,7 +123,7 @@ aucs = classifier_evaluation(features, remissions, cv=10, repetitions=repetition
 # Choose best classifier and continue
 average_aucs = np.array([(np.mean(aucs[:,i]),np.std(aucs[:,i])) for i in range(len(classifiers))])
 best_classifier = classifiers[np.argmax(average_aucs[:,0])]
-# best_classifier = BaggingClassifier(best_classifier,n_estimators=10, random_state=0)
+best_classifier = BaggingClassifier(best_classifier,n_estimators=10, random_state=0)
 print(best_classifier)
 
 # Prepare and create carala dataset  
@@ -132,12 +138,11 @@ dataset = CsvCatalog(df=X_df,
                     target='Y')
 
 # Create custom classifier using carla interfaca
+# TODO: remove fit_full_data param to make pull request possible eventually
 model = CustomClf(dataset, clf=best_classifier, fit_full_data=True)
 
 # predict negative instances to flip later on using one of the counterfactual generation methods
 factuals = predict_negative_instances(model, model.X)
-# TODO: figure out why the reset was needed (it messess with subject filtering if we do it)
-# factuals = predict_negative_instances(model, model.X).reset_index(drop=True)
 print(len(factuals))
 
 # read in default hyperparameters for recourse methods
@@ -147,79 +152,41 @@ else:
     hyper_params_path = os.path.join(os.getcwd(), 'Code', 'Utilities', 'carla_hyper_parameters.json')
 hyper_parameters = json.load(open(hyper_params_path))
 
-# init one of the recourse method and make benchmark object (Revise without a descent gpu is very slow)
-recourse_methods = [
-                    # ('face_eps', Face(model, hyperparams=face_eps_hyperparameters)),
-                    # ('face_knn', Face(model, hyperparams=face_knn_hyperparameters)),
-                    # ('revise', Revise(model, dataset, hyper_parameters['revise'])), 
-                    ('gs', GrowingSpheres(model, hyper_parameters['gs'])),
-                    ('dice', Dice(model, hyperparams=hyper_parameters['dice']))]
 
-# # generate n counterfactuals for each sample
-subject = factuals.index[10]
-try:
-    all_results = []
-    methods_used = list(list(zip(*recourse_methods))[0])
-    for name, recourse_method in recourse_methods:
-        print(name)
-        try:
-            ces, summuary_plot, single_plots = generate_batch_counterfactuals_single_factual(dataset, 
-                                                                recourse_method, 
-                                                                factuals.filter(items=[subject], axis=0), 10, 5, 
-                                                                return_plot=True)
-            sample_factuals = pd.DataFrame(np.repeat(factuals.filter(items=[subject], axis=0).values, len(ces), axis=0), columns=factuals.columns)
-            benchmark = Benchmark(model, sample_factuals,recourse_method, ces)
-            df_bench, metrics = run_benchmark(benchmark)
-            all_results.append(df_bench[['L0_distance', 'L1_distance', 'L2_distance']])
-        except Exception as e:
-            methods_used.remove(name)
-            print(f'Method {name} was skipped due to :{str(e)}')
-            continue
+test_factuals = factuals[:10].copy()
 
-    distances = pd.concat(all_results, keys=methods_used)
-    distances.index.names = ['method', 'index']
-    distances.reset_index(level='method', inplace=True)
-    distances.reset_index(inplace=True, drop=True)
+start_time = time.time()
+all_results = generate_counterfactuals_for_batch_factuals(model, hyper_parameters, test_factuals, 2)   
+save_all_data_and_parameters(carla_save_path, all_results, model, hyper_parameters, test_factuals)
+time_lapsed = time.time() - start_time
+print(time_lapsed)
+      
+ 
+#  Read in and plot results
+results_folder = os.path.join(carla_save_path, os.listdir(carla_save_path)[2])
+rc_methods = ['revise','gs', 'dice','naive_gower', 'cchvae']
+rc_results = {}
+bench_results = {}
+for rc in rc_methods:
+    rc_results[rc] = pd.read_csv(os.path.join(results_folder, rc+'_counterfactuals.csv'), index_col=0)
+    bench_results[rc] = pd.read_csv(os.path.join(results_folder, rc+'_benchmarks.csv'), index_col=0)
     
-    sns.boxplot(data = distances, x = 'L0_distance', y='method')
-    sns.stripplot(data = distances, x = 'L0_distance', y='method',
-                    color = 'black',
-                    alpha = 0.3)
-    sns.boxplot(data = distances, x = 'L1_distance', y='method')
-    sns.stripplot(data = distances, x = 'L1_distance', y='method',
-                    color = 'black',
-                    alpha = 0.3)
-    sns.boxplot(data = distances, x = 'L2_distance', y='method')
-    sns.stripplot(data = distances, x = 'L2_distance', y='method',
-                    color = 'black',
-                    alpha = 0.3)  
-except ValueError as e:
-    if str(e) == 'Empty data passed with indices specified.':
-        print("Subject not in DATASET!")
-    else:
-        raise(e)
+box_plot_benchmark_multiple_rc_methods(bench_results, rc_methods, 'L0_distance')
+box_plot_benchmark_multiple_rc_methods(bench_results, rc_methods, 'L1_distance')
+box_plot_benchmark_multiple_rc_methods(bench_results, rc_methods, 'L2_distance')
+box_plot_benchmark_multiple_rc_methods(bench_results, rc_methods, 'single-y-Nearest-Neighbours')
+box_plot_benchmark_multiple_rc_methods(bench_results, rc_methods, 'Redundancy')
 
 
-test_factuals = factuals[0:10]
-test_factuals.sort_index()
-ng = NaiveGower(model, hyper_parameters['naive_gower'])
-cf = ng.get_counterfactuals(test_factuals)
-single_sample_plot(test_factuals.loc[32], cf.loc[32], dataset, figsize=(7,5))
+combined_data = [value for key, value in bench_results.items()]
+combined_data = pd.concat(combined_data, keys=rc_methods)
+combined_data.index.names = ['method', 'index']
+combined_data.reset_index(level='method', inplace=True)
+combined_data.reset_index(inplace=True, drop=True)
 
+sns.countplot(data=combined_data, x="method")
+sns.barplot(data=combined_data, x="method", y='Redundancy')
+pd.crosstab(combined_data['method'],combined_data['connectedness']).plot.barh(stacked=True)
+pd.crosstab(combined_data['method'],combined_data['Stability']).plot.barh(stacked=True)
 
-
-revise_cfs, gs_cfs, dice_cfs = generate_counterfactuals_for_batch_factuals(model, 
-                                                                            hyper_parameters, 
-                                                                            test_factuals, 
-                                                                            2)         
-display(gs_cfs)
-display(revise_cfs)
-display(dice_cfs)
-
-# model.predict_proba(test_factuals.loc[revise_cfs.index])
-# model.predict_proba(revise_cfs)
-
-# benchmark = Benchmark(mlmodel=model, factuals=test_factuals.loc[dice_cfs.index], counterfactuals=dice_cfs)
-# df_bench, metrics = run_benchmark(benchmark)
-# display(df_bench)
 

@@ -49,7 +49,7 @@ def check_counterfactuals(
     df_cfs = df_cfs[df_cfs.isna().any(axis=1) == False]
     if df_cfs.empty == False:
         df_cfs[mlmodel.data.target] = np.argmax(mlmodel.predict_proba(df_cfs), axis=1)
-    df_cfs = df_cfs.append(nan_rows).sort_index()
+    df_cfs = df_cfs.append(nan_rows)
     
     # Change all wrong counterfactuals to nan
     df_cfs.loc[df_cfs[mlmodel.data.target] == negative_label, :] = np.nan

@@ -5,7 +5,9 @@ from CARLA.carla.models.catalog import MLModelCatalog
 from CARLA.carla.plotting.plotting import summary_plot, single_sample_plot
 from CARLA.carla.models.negative_instances import predict_negative_instances
 from CARLA.carla.recourse_methods import *
+import json, os, pickle
 import numpy as np
+from datetime import datetime
 import matplotlib.pyplot as plt
 import pandas as pd
 from ast import literal_eval
@@ -29,17 +31,19 @@ def make_test_benchmark(data_name="adult", model_name="ann"):
     return benchmark
 
 
-def run_benchmark(benchmark):
-    evaluation_measures = [
-        evaluation_catalog.YNN(benchmark.mlmodel, {"y": 5, "cf_label": 1}),
-        evaluation_catalog.Distance(benchmark.mlmodel),
-        evaluation_catalog.SuccessRate(),
-        evaluation_catalog.Redundancy(benchmark.mlmodel, {"cf_label": 1}),
-        # evaluation_catalog.ConstraintViolation(benchmark.mlmodel),
-        evaluation_catalog.AvgTime({"time": benchmark.timer}),
-    ]
+def run_benchmark(benchmark, hyper_parameters):
+    if benchmark._counterfactuals.dropna().empty:
+        return pd.DataFrame()
+    evaluation_measures = [evaluation_catalog.SingleYNN(benchmark.mlmodel, hyper_parameters['singleYNN']),
+                            evaluation_catalog.Stability(benchmark.mlmodel, hyper_parameters['stability']),
+                            evaluation_catalog.Redundancy(benchmark.mlmodel, hyper_parameters['redundancy']),
+                            evaluation_catalog.Distance(benchmark.mlmodel),
+                            evaluation_catalog.YNN(benchmark.mlmodel, hyper_parameters['ynn']),
+                            evaluation_catalog.AvgTime({"time": benchmark.timer}),
+                            evaluation_catalog.Connectedness(benchmark.mlmodel, hyper_parameters['connectedness']),
+                       evaluation_catalog.SuccessRate()]
     df_benchmark = benchmark.run_benchmark(evaluation_measures)
-    return df_benchmark, evaluation_measures   
+    return df_benchmark   
 
 def determine_feature_types(X_df, static_feature_types, assessments, use_orginal_column_names=True):
     continuous = []
@@ -127,39 +131,110 @@ def generate_counterfactuals_for_batch_factuals(model, hyper_parameters, factual
     revise_factuals = factuals.copy()
     gs_factuals = factuals.copy()
     dice_factuals = factuals.copy()
+    naive_gower_factuals = factuals.copy()
+    cchvae_factuals = factuals.copy()
     
     revise_counterfactuals = pd.DataFrame()
     gs_counterfactuals = pd.DataFrame()
+    naive_gower_counterfactuals = pd.DataFrame()
     dice_counterfactuals = pd.DataFrame(columns=dice_factuals.columns)
+    cchvae_counterfactuals = pd.DataFrame()
+    
+    revise_benchmarks = pd.DataFrame()
+    gs_benchmarks = pd.DataFrame()
+    naive_gower_benchmarks = pd.DataFrame()
+    dice_benchmarks = pd.DataFrame()
+    cchvae_benchmarks = pd.DataFrame()
+    
     
     for i in range(retries):
         # init all recourse methods
         dice_method = Dice(model, hyperparams=hyper_parameters['dice'])
         gs_method = GrowingSpheres(model, hyperparams=hyper_parameters['gs'])
+        naive_gower_method = NaiveGower(model, hyperparams=hyper_parameters['naive_gower'])
         revise_method = Revise(model, model.data, hyperparams=hyper_parameters['revise'])
+        cchvae_method = CCHVAE(model, hyperparams=hyper_parameters['cchvae'])
         
         # get counterfactuals using all methods
-        if gs_factuals.empty == False:
-            cfs = gs_method.get_counterfactuals(gs_factuals)
+        if naive_gower_factuals.empty == False:
+            benchmark = Benchmark(mlmodel=model, factuals=naive_gower_factuals, recourse_method=naive_gower_method)
+            bench_results = run_benchmark(benchmark, hyper_parameters)
+            cfs = benchmark._counterfactuals.copy()
             cfs.dropna(inplace=True)
+            naive_gower_benchmarks = naive_gower_benchmarks.append(bench_results)
+            naive_gower_counterfactuals = naive_gower_counterfactuals.append(cfs)
+            # drop all rows because retries is not needed for this method
+            naive_gower_factuals.drop(naive_gower_factuals.index, inplace=True)
+            print('naive_gower', len(naive_gower_counterfactuals))
+        if gs_factuals.empty == False:
+            benchmark = Benchmark(mlmodel=model, factuals=gs_factuals, recourse_method=gs_method)
+            bench_results = run_benchmark(benchmark, hyper_parameters)
+            cfs = benchmark._counterfactuals.copy()
+            cfs.dropna(inplace=True)
+            gs_benchmarks = gs_benchmarks.append(bench_results)
             gs_counterfactuals = gs_counterfactuals.append(cfs)
             gs_factuals.drop(cfs.index, inplace=True)
-            print('gs',len(gs_counterfactuals))
+            print('gs', len(gs_counterfactuals))
         if revise_factuals.empty == False:
-            cfs = revise_method.get_counterfactuals(revise_factuals)
+            benchmark = Benchmark(mlmodel=model, factuals=revise_factuals, recourse_method=revise_method)
+            bench_results = run_benchmark(benchmark, hyper_parameters)
+            cfs = benchmark._counterfactuals.copy()
             cfs.dropna(inplace=True)
+            revise_benchmarks = revise_benchmarks.append(bench_results)
             revise_counterfactuals = revise_counterfactuals.append(cfs)
             revise_factuals.drop(cfs.index, inplace=True)
-            print('rev', len(revise_counterfactuals))
+            print('revise', len(revise_counterfactuals))
+        if cchvae_factuals.empty == False:
+            benchmark = Benchmark(mlmodel=model, factuals=cchvae_factuals, recourse_method=cchvae_method)
+            bench_results = run_benchmark(benchmark, hyper_parameters)
+            cfs = benchmark._counterfactuals.copy()
+            cfs.dropna(inplace=True)
+            cchvae_benchmarks = cchvae_benchmarks.append(bench_results)
+            cchvae_counterfactuals = cchvae_counterfactuals.append(cfs)
+            cchvae_factuals.drop(cfs.index, inplace=True)
+            print('cchvae', len(cchvae_counterfactuals))
         if dice_factuals.empty == False:    
             # for loop only needed for dice due to index disappearance
             for index, value in dice_factuals.iterrows():
-                dice_cf = dice_method.get_counterfactuals(dice_factuals.filter(items=[index], axis=0))
+                benchmark = Benchmark(mlmodel=model, factuals=dice_factuals.filter(items=[index], axis=0), 
+                                      recourse_method=dice_method)
+                dice_cf = benchmark._counterfactuals.copy()
                 dice_cf.dropna(inplace=True)
                 if dice_cf.empty == False:
+                    bench_results = run_benchmark(benchmark, hyper_parameters)
                     dice_cf.index = [index]
                     dice_counterfactuals = dice_counterfactuals.append(dice_cf)
+                    dice_benchmarks = dice_benchmarks.append(bench_results)
                     dice_factuals.drop(index, inplace=True)
             print('dice', len(dice_counterfactuals))
-                    
-    return revise_counterfactuals, gs_counterfactuals, dice_counterfactuals
+    all_results = {}
+    all_results['revise'] = (revise_benchmarks, revise_counterfactuals)
+    all_results['dice'] = (dice_benchmarks, dice_counterfactuals)
+    all_results['gs'] = (gs_benchmarks, gs_counterfactuals)
+    all_results['cchvae'] = (cchvae_benchmarks, cchvae_counterfactuals)
+    all_results['naive_gower'] = (naive_gower_benchmarks, naive_gower_counterfactuals)
+    
+    return all_results
+
+
+def save_all_data_and_parameters(save_path, all_results, clf, hyper_parameters, factuals):
+    folder_name = os.path.join(save_path, 
+                            datetime.now().strftime("%d-%m-%YT%H%M%S") + '_' + str(clf.raw_model[1]) 
+                            + '_' + str(len(factuals)))
+    os.mkdir(folder_name)
+    # save model, hyperparamters and all results
+    pickle.dump(clf.raw_model, open(os.path.join(folder_name, 'model.sav'), 'wb'))
+    json.dump(hyper_parameters, open(os.path.join(folder_name, 'hyper_parameters.json'), 'w'), cls=NpEncoder)        
+    for key, value in all_results.items():
+        value[0].to_csv(os.path.join(folder_name, f'{key}_benchmarks.csv'))
+        value[1].to_csv(os.path.join(folder_name, f'{key}_counterfactuals.csv')) 
+
+class NpEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super(NpEncoder, self).default(obj)

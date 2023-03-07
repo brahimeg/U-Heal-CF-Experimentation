@@ -23,7 +23,7 @@ class Redundancy(Evaluation):
         redundancy = 0
         for col_idx in range(len(counterfactual)):
             # if feature is changed
-            if factual[col_idx] != counterfactual[col_idx]:
+            if abs(factual[col_idx] - counterfactual[col_idx]) > 0.000001:
                 temp_cf = np.copy(counterfactual)
                 temp_cf[col_idx] = factual[col_idx]
                 # see if change is needed to flip the label

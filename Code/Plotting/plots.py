@@ -205,3 +205,33 @@ def plot_CFI_group_effect(cfi, save_path=None):
         if save_path is not None:
             fig1.savefig(save_path + 'Group_Feature_Importance_' + sft + '.png', dpi=150)
     
+    
+def box_plot_benchmark_multiple_rc_methods(bench_results, rc_methods, column_name):
+    combined_data = [value for key, value in bench_results.items()]
+    combined_data = pd.concat(combined_data, keys=rc_methods)
+    combined_data.index.names = ['method', 'index']
+    combined_data.reset_index(level='method', inplace=True)
+    combined_data.reset_index(inplace=True, drop=True)
+
+    sns.set(style="darkgrid")
+    ax = sns.boxplot(data = combined_data, x = column_name, y='method')
+    ax = sns.stripplot(data = combined_data, x = column_name, y='method',
+                    color = 'black',
+                    alpha = 0.3)
+    # Calculate number of obs per group & median to position labels
+    means = combined_data.groupby(['method'])[column_name].mean()[rc_methods].values
+    nobs = combined_data['method'].value_counts()[rc_methods].values
+    nobs = [str(x) for x in nobs.tolist()]
+    nobs = ["n: " + i for i in nobs]
+    
+    # Add it to the plot
+    pos = range(len(nobs))
+    for tick, label in zip(pos,ax.get_yticklabels()):
+        ax.text(means[tick],
+                pos[tick],
+                nobs[tick],
+                verticalalignment='bottom',
+                size='x-small',
+                color='w',
+                weight='semibold')
+    plt.show()
