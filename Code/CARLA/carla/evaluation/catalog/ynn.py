@@ -48,7 +48,7 @@ class YNN(Evaluation):
         return 1 - (1 / (len(counterfactuals) * self.y)) * number_of_diff_labels
 
     def get_evaluation(self, factuals, counterfactuals):
-        counterfactuals_without_nans = remove_nans(counterfactuals)
+        counterfactuals_without_nans, _ = remove_nans(counterfactuals)
 
         if counterfactuals_without_nans.empty:
             ynn = np.nan

@@ -48,7 +48,7 @@ class Connectedness(Evaluation):
         return [1 if x!=-1 else x for x in dbscan_results]
 
     def get_evaluation(self, factuals, counterfactuals):
-        counterfactuals_without_nans = remove_nans(counterfactuals)
+        counterfactuals_without_nans, _ = remove_nans(counterfactuals)
 
         if counterfactuals_without_nans.empty:
             conns = np.nan

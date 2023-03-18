@@ -3,6 +3,7 @@ from CARLA.carla.models.negative_instances import predict_negative_instances
 from CARLA.carla.recourse_methods import *
 from IPython.display import display
 from datetime import datetime
+import CARLA.carla.evaluation.catalog as evaluation_catalog
 from Utilities.customclf import CustomClf
 from Plotting.plots import box_plot_benchmark_multiple_rc_methods
 from CARLA.carla.plotting.plotting import summary_plot, single_sample_plot
@@ -30,7 +31,7 @@ import pickle, time
 import pandas as pd
 import numpy as np
 import warnings, os, json
-from sklearn.ensemble import BaggingClassifier
+from sklearn.ensemble import BaggingClassifier, VotingClassifier
 warnings.filterwarnings("ignore")
 
 
@@ -113,7 +114,7 @@ classifier_names = ['LR', "LSVM", "RBF-SVM", "KNN", "MLP", "DT", "RF", "AdaBoost
                     'GB', "NB"]
 
 
-aucs = classifier_evaluation(features, remissions, cv=5, repetitions=repetitions, assessments=assessments,
+aucs = classifier_evaluation(features, remissions, cv=10, repetitions=repetitions, assessments=assessments,
                         static_feature_types=static_feature_types, criterion=remission_criterion,
                         feature_visits=feature_visits, label_visit=label_visit, missing_values='impute',
                         classifiers=classifiers, classifier_names=classifier_names)
@@ -123,7 +124,7 @@ aucs = classifier_evaluation(features, remissions, cv=5, repetitions=repetitions
 # Choose best classifier and continue
 average_aucs = np.array([(np.mean(aucs[:,i]),np.std(aucs[:,i])) for i in range(len(classifiers))])
 best_classifier = classifiers[np.argmax(average_aucs[:,0])]
-best_classifier = BaggingClassifier(best_classifier,n_estimators=10, random_state=0)
+best_classifier = BaggingClassifier(best_classifier, n_estimators=20, bootstrap=False, n_jobs=-1)
 print(best_classifier)
 
 # Prepare and create carala dataset  
@@ -137,7 +138,7 @@ dataset = CsvCatalog(df=X_df,
                     immutables=immutable,
                     target='Y')
 
-# Create custom classifier using carla interfaca
+# Create custom classifier using carla interface
 # TODO: remove fit_full_data param to make pull request possible eventually
 model = CustomClf(dataset, clf=best_classifier, fit_full_data=True)
 
@@ -152,31 +153,40 @@ else:
     hyper_params_path = os.path.join(os.getcwd(), 'Code', 'Utilities', 'carla_hyper_parameters.json')
 hyper_parameters = json.load(open(hyper_params_path))
 
-
-test_factuals = factuals[:10].copy()
+test_factuals = factuals[:5].copy()
 
 start_time = time.time()
-all_results = generate_counterfactuals_for_batch_factuals(model, hyper_parameters, test_factuals, 2)   
+all_results = generate_counterfactuals_for_batch_factuals(model, hyper_parameters, test_factuals, 1)   
 save_all_data_and_parameters(carla_save_path, all_results, model, hyper_parameters, test_factuals)
 time_lapsed = time.time() - start_time
 print(time_lapsed)
-      
+
  
 #  Read in and plot results
-results_folder = os.path.join(carla_save_path, os.listdir(carla_save_path)[2])
-rc_methods = ['revise','gs', 'dice','naive_gower', 'cchvae']
+rc_methods = ['gs', 'revise', 'dice','naive_gower', 'cchvae']
+full_runs = [('MLP','04-03-2023T142623_BaggingClassifier(base_estimator=MLPClassifier(), random_state=0)_120'), 
+             ('GB','08-03-2023T043629_BaggingClassifier(base_estimator=GradientBoostingClassifier(), random_state=0)_112'),
+             ('SVC','05-03-2023T225835_BaggingClassifier(base_estimator=SVC(probability=True), random_state=0)_98')]
 rc_results = {}
 bench_results = {}
-for rc in rc_methods:
-    rc_results[rc] = pd.read_csv(os.path.join(results_folder, rc+'_counterfactuals.csv'), index_col=0)
-    bench_results[rc] = pd.read_csv(os.path.join(results_folder, rc+'_benchmarks.csv'), index_col=0)
+for run in full_runs:
+    results_folder = os.path.join(carla_save_path, run[1])
+    clf = run[0]
+    bench_results[clf] = {}
+    rc_results[clf] = {}
+    for rc in rc_methods:
+        rc_results[clf][rc] = pd.read_csv(os.path.join(results_folder, rc+'_counterfactuals.csv'), index_col=0)
+        bench_results[clf][rc] = pd.read_csv(os.path.join(results_folder, rc+'_benchmarks.csv'), index_col=0)
+        if  not bench_results[clf][rc].empty:
+            bench_results[clf][rc].avg_time = bench_results[clf][rc].avg_time.fillna(method='ffill').mean()
+            bench_results[clf][rc].Success_Rate = bench_results[clf][rc].Success_Rate.fillna(method='ffill').mean()
+            bench_results[clf][rc]['y-Nearest-Neighbours'] = bench_results[clf][rc]['y-Nearest-Neighbours'].fillna(method='ffill').mean()    
     
-box_plot_benchmark_multiple_rc_methods(bench_results, rc_methods, 'L0_distance')
-box_plot_benchmark_multiple_rc_methods(bench_results, rc_methods, 'L1_distance')
-box_plot_benchmark_multiple_rc_methods(bench_results, rc_methods, 'L2_distance')
-box_plot_benchmark_multiple_rc_methods(bench_results, rc_methods, 'single-y-Nearest-Neighbours')
-box_plot_benchmark_multiple_rc_methods(bench_results, rc_methods, 'Redundancy')
-
+box_plot_benchmark_multiple_rc_methods(bench_results['SVC'], rc_methods, 'L0_distance')
+box_plot_benchmark_multiple_rc_methods(bench_results['SVC'], rc_methods, 'L1_distance')
+box_plot_benchmark_multiple_rc_methods(bench_results['SVC'], rc_methods, 'L2_distance')
+box_plot_benchmark_multiple_rc_methods(bench_results['SVC'], rc_methods, 'single-y-Nearest-Neighbours')
+box_plot_benchmark_multiple_rc_methods(bench_results['SVC'], rc_methods, 'Redundancy')
 
 combined_data = [value for key, value in bench_results.items()]
 combined_data = pd.concat(combined_data, keys=rc_methods)
@@ -184,9 +194,90 @@ combined_data.index.names = ['method', 'index']
 combined_data.reset_index(level='method', inplace=True)
 combined_data.reset_index(inplace=True, drop=True)
 
+
 sns.countplot(data=combined_data, x="method")
 sns.barplot(data=combined_data, x="method", y='Redundancy')
 pd.crosstab(combined_data['method'],combined_data['connectedness']).plot.barh(stacked=True)
 pd.crosstab(combined_data['method'],combined_data['Stability']).plot.barh(stacked=True)
+
+
+# single clf comparison plot
+sns.set(style="darkgrid")
+method = 'gs'
+combined_clf_data = pd.DataFrame()
+for key, value in bench_results.items():
+    temp = bench_results[key][method]
+    temp['clf'] = key
+    combined_clf_data = combined_clf_data.append(temp)
+    
+ax = plt.axes()
+ax.set_title(method.upper())
+ax = sns.boxplot(data = combined_clf_data, x = 'L2_distance', y='clf')
+ax = sns.stripplot(data = combined_clf_data, x = 'L2_distance', y='clf',
+                color = 'black',
+                alpha = 0.3)
+
+
+
+# connectedness experiments    
+rc_methods = ['gs', 'revise', 'dice','naive_gower', 'cchvae']
+connect_folder = os.path.join(carla_save_path, 'connectedness experiments')
+cfs_for_conns = {}
+existing_indc = list(set(X_df.index) - set(factuals.index))
+for method in rc_methods:
+    cfs_for_conns[method] = pd.DataFrame()
+    for folder in os.listdir(connect_folder)[1:]:
+        folder_path = os.path.join(connect_folder, folder)
+        try:
+            temp_df = pd.read_csv(os.path.join(folder_path, method+'_counterfactuals.csv'), index_col=0)
+            cfs_for_conns[method] = cfs_for_conns[method].append(temp_df)
+            cfs_for_conns[method].drop_duplicates(inplace=True)
+            cfs_for_conns[method].drop(existing_indc, errors='ignore', inplace=True)
+        except:
+            print(method)
+            continue
+        
+        
+final_c_bench = pd.DataFrame()
+for key, value in cfs_for_conns.items():
+    row = {}
+    benchmark = Benchmark(mlmodel=model, factuals=None , recourse_method=None, counterfactuals=value)
+    conns = benchmark.run_benchmark([evaluation_catalog.Stability(benchmark.mlmodel, hyper_parameters['stability'])])['Stability']
+
+    
+
+final_c_bench = pd.DataFrame()
+for eps in np.arange(3.0, 4.5,0.5):
+    print(eps)
+    hyper_parameters['connectedness']['eps'] = eps  
+    for min_s in np.arange(3,10,1):
+        hyper_parameters['connectedness']['min_samples'] = min_s  
+        for key, value in cfs_for_conns.items():
+            row = {}
+            benchmark = Benchmark(mlmodel=model, factuals=None , recourse_method=None, counterfactuals=value)
+            conns = benchmark.run_benchmark([evaluation_catalog.Connectedness(benchmark.mlmodel, hyper_parameters['connectedness'])])['connectedness']
+            row['epsilon'] = eps
+            row['min_samples'] = min_s
+            row['method'] = key
+            try:
+                row['Connected%'] = (conns.value_counts()[1] / len(conns))*100
+            except:
+                row['Connected%'] = 0
+            final_c_bench = final_c_bench.append(row, ignore_index=True)
+
+min_s = 9
+ax = plt.axes()
+ax.set_title('Min Samples ' + str(min_s))
+temp_data_min_s = final_c_bench[final_c_bench.min_samples == min_s]
+sns.lineplot(data=temp_data_min_s, x='epsilon', y='Connected%',hue="method")            
+
+method = 'revise'
+temp_data_method = final_c_bench[final_c_bench.method == method]
+pivot = temp_data_method[['epsilon', 'Connected%', 'min_samples']].pivot(index='min_samples', columns='epsilon', values='Connected%')
+ax = plt.axes()
+ax.set_title(method+' recourse')
+sns.heatmap(pivot, annot=False, cmap="crest")
+
+
 
 

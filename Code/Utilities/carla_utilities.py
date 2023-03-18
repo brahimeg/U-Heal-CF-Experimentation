@@ -37,6 +37,7 @@ def run_benchmark(benchmark, hyper_parameters):
     evaluation_measures = [evaluation_catalog.SingleYNN(benchmark.mlmodel, hyper_parameters['singleYNN']),
                             evaluation_catalog.Stability(benchmark.mlmodel, hyper_parameters['stability']),
                             evaluation_catalog.Redundancy(benchmark.mlmodel, hyper_parameters['redundancy']),
+                            evaluation_catalog.Sparsity(benchmark.mlmodel, hyper_parameters['sparsity']),
                             evaluation_catalog.Distance(benchmark.mlmodel),
                             evaluation_catalog.YNN(benchmark.mlmodel, hyper_parameters['ynn']),
                             evaluation_catalog.AvgTime({"time": benchmark.timer}),
@@ -127,7 +128,8 @@ def generate_batch_counterfactuals_single_factual(dataset, recourse_method, fact
     else:
         return df
     
-def generate_counterfactuals_for_batch_factuals(model, hyper_parameters, factuals, retries=5):
+def generate_counterfactuals_for_batch_factuals(model, hyper_parameters, factuals, retries=5,
+                                                rc_methods=["dice", "gs", "naive_gower", "revise", "cchvae"]):
     revise_factuals = factuals.copy()
     gs_factuals = factuals.copy()
     dice_factuals = factuals.copy()
@@ -219,8 +221,8 @@ def generate_counterfactuals_for_batch_factuals(model, hyper_parameters, factual
 
 def save_all_data_and_parameters(save_path, all_results, clf, hyper_parameters, factuals):
     folder_name = os.path.join(save_path, 
-                            datetime.now().strftime("%d-%m-%YT%H%M%S") + '_' + str(clf.raw_model[1]) 
-                            + '_' + str(len(factuals)))
+                               datetime.now().strftime("%d-%m-%YT%H%M%S") + '_' + 
+                               str(clf.raw_model[1]).replace("\n", "").replace("  ", "") + '_' + str(len(factuals)))
     os.mkdir(folder_name)
     # save model, hyperparamters and all results
     pickle.dump(clf.raw_model, open(os.path.join(folder_name, 'model.sav'), 'wb'))

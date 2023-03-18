@@ -212,7 +212,8 @@ def box_plot_benchmark_multiple_rc_methods(bench_results, rc_methods, column_nam
     combined_data.index.names = ['method', 'index']
     combined_data.reset_index(level='method', inplace=True)
     combined_data.reset_index(inplace=True, drop=True)
-
+    rc_methods = list(combined_data.method.unique())
+    
     sns.set(style="darkgrid")
     ax = sns.boxplot(data = combined_data, x = column_name, y='method')
     ax = sns.stripplot(data = combined_data, x = column_name, y='method',
@@ -226,7 +227,7 @@ def box_plot_benchmark_multiple_rc_methods(bench_results, rc_methods, column_nam
     
     # Add it to the plot
     pos = range(len(nobs))
-    for tick, label in zip(pos,ax.get_yticklabels()):
+    for tick, label in zip(pos, ax.get_yticklabels()):
         ax.text(means[tick],
                 pos[tick],
                 nobs[tick],

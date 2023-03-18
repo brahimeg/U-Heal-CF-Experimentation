@@ -13,3 +13,4 @@ recourse
 torch
 torchvision
 protobuf==3.19.6
+gower

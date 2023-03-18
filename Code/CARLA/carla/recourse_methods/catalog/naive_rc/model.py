@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from gower import gower_matrix, gower_topn, smallest_indices
+from gower import gower_matrix, gower_topn
 
 from CARLA.carla.models.api import MLModel
 from CARLA.carla.recourse_methods.api import RecourseMethod
@@ -11,6 +11,16 @@ from CARLA.carla.recourse_methods.processing import (
     encode_feature_names,
     merge_default_parameters
 )
+
+def smallest_indices(ary, n):
+    """Returns the n largest indices from a numpy array."""
+    #n += 1
+    flat = np.nan_to_num(ary.flatten(), nan=999)
+    indices = np.argpartition(-flat, -n)[-n:]
+    indices = indices[np.argsort(flat[indices])]
+    #indices = np.delete(indices,0,0)
+    values = flat[indices]
+    return {'index': indices, 'values': values}
 
 class NaiveGower(RecourseMethod):
     """_summary_
@@ -50,7 +60,8 @@ class NaiveGower(RecourseMethod):
         self._categorical_enc = encode_feature_names(
             self._mlmodel.data.categorical, self._mlmodel.feature_input_order
         )
-
+        
+    
     def get_counterfactuals(self, factuals: pd.DataFrame) -> pd.DataFrame:
         factuals = self._mlmodel.get_ordered_features(factuals)
         if self._mlmodel._fit_full_data:

@@ -51,7 +51,7 @@ class SingleYNN(Evaluation):
         return ynns
 
     def get_evaluation(self, factuals, counterfactuals):
-        counterfactuals_without_nans = remove_nans(counterfactuals)
+        counterfactuals_without_nans, _ = remove_nans(counterfactuals)
 
         if counterfactuals_without_nans.empty:
             ynns = np.nan

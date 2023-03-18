@@ -9,3 +9,4 @@ from .ynn import YNN
 from .single_ynn import SingleYNN
 from .stability import Stability
 from .connectedness import Connectedness
+from .sparsity import Sparsity

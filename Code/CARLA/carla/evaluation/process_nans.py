@@ -33,4 +33,4 @@ def remove_nans(
         output_factuals = output_factuals.drop(index=nan_idx)
         return output_counterfactuals, output_factuals
 
-    return output_counterfactuals
+    return output_counterfactuals, None

@@ -7,41 +7,34 @@ from CARLA.carla.evaluation import remove_nans
 from CARLA.carla.evaluation.api import Evaluation
 
 
-class Redundancy(Evaluation):
+class Sparsity(Evaluation):
     """
-    Computes redundancy for each counterfactual
+    Computes sparsity for each counterfactual
     """
 
     def __init__(self, mlmodel, hyperparameters):
         super().__init__(mlmodel, hyperparameters)
         self.cf_label = self.hyperparameters["cf_label"]
-        self.columns = ["Redundancy"]
+        self.columns = ["Sparsity"]
 
-    def _compute_redundancy(
+    def _compute_sparsity(
         self, factual: np.ndarray, counterfactual: np.ndarray
     ) -> int:
-        redundancy = 0
-        mutable_feature_count = counterfactual.shape[0] - len(self.mlmodel.data.immutables)
+        mutable_count = len(self.mlmodel.data.continuous)+len(self.mlmodel.data.categorical) - len(self.mlmodel.data._immutables)
+        changed_features = 0
         for col_idx in range(len(counterfactual)):
             # if feature is changed
             if abs(factual[col_idx] - counterfactual[col_idx]) > 0.000001:
-                temp_cf = np.copy(counterfactual)
-                temp_cf[col_idx] = factual[col_idx]
-                # see if change is needed to flip the label
-                temp_pred = np.argmax(
-                    self.mlmodel.predict_proba(temp_cf.reshape((1, -1)))
-                )
-                if temp_pred == self.cf_label:
-                    redundancy += 1
-        return redundancy/mutable_feature_count
+                changed_features += 1
+        return changed_features/mutable_count
 
-    def _redundancy(
+    def _sparsity(
         self,
         factuals: pd.DataFrame,
         counterfactuals: pd.DataFrame,
     ) -> List[List[int]]:
         """
-        Computes Redundancy measure for every counterfactual.
+        Computes sparsity measure for every counterfactual.
 
         Parameters
         ----------
@@ -52,19 +45,19 @@ class Redundancy(Evaluation):
 
         Returns
         -------
-        List with redundancy values per counterfactual sample
+        List with sparsity values per counterfactual sample
         """
         df_enc_norm_fact = factuals.reset_index(drop=True)
         df_cfs = counterfactuals.reset_index(drop=True)
 
-        df_cfs["redundancy"] = df_cfs.apply(
-            lambda x: self._compute_redundancy(
+        df_cfs["sparsity"] = df_cfs.apply(
+            lambda x: self._compute_sparsity(
                 df_enc_norm_fact.iloc[x.name].values,
                 x.values,
             ),
             axis=1,
         )
-        return df_cfs["redundancy"].values.reshape((-1, 1)).tolist()
+        return df_cfs["sparsity"].values.reshape((-1, 1)).tolist()
 
     def get_evaluation(self, counterfactuals, factuals):
         counterfactuals_without_nans, factual_without_nans = remove_nans(
@@ -74,7 +67,7 @@ class Redundancy(Evaluation):
         if counterfactuals_without_nans.empty:
             redundancies = []
         else:
-            redundancies = self._redundancy(
+            redundancies = self._sparsity(
                 factual_without_nans,
                 counterfactuals_without_nans,
             )
