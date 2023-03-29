@@ -38,7 +38,7 @@ class Benchmark:
         if counterfactuals.empty:
             self._factuals = self.mlmodel.get_ordered_features(factuals.copy())
             self._recourse_method = recourse_method
-            self._counterfactuals = recourse_method.get_counterfactuals(factuals)
+            self._counterfactuals = recourse_method.get_counterfactuals(self._factuals)
         else:
             self._factuals = None
             self._counterfactuals = counterfactuals
@@ -64,7 +64,11 @@ class Benchmark:
             )
             for measure in measures
         ]
-
         output = pd.concat(pipeline, axis=1)
-        output.index = self._counterfactuals.dropna().index
+        if self._counterfactuals.dropna().empty:
+            output.index = [-1]
+        else:
+            output.index = self._counterfactuals.dropna().index
         return output
+
+

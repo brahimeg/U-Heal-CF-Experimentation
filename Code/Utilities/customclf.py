@@ -93,6 +93,9 @@ class CustomClf(MLModel):
     @property
     def raw_model(self):
         return self._mymodel
+    @raw_model.setter
+    def raw_model(self, model):
+        self._mymodel = model
     
     @property
     def model_type(self):

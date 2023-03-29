@@ -48,7 +48,7 @@ def growing_spheres_search(
     n_search_samples=1000,
     p_norm=2,
     step=0.2,
-    max_iter=1000,
+    max_iter=100,
 ):
 
     """
@@ -62,7 +62,6 @@ def growing_spheres_search(
     :param keys_immutable: list; list of input names that may not be searched over
     :return:
     """  #
-
     # correct order of names
     keys_correct = feature_order
     # divide up keys

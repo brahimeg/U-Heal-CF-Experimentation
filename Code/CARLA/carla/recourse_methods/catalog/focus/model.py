@@ -9,7 +9,6 @@ from typing import Dict, Optional
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-import tensorflow.contrib.eager as tfe
 from sklearn.tree import DecisionTreeClassifier
 
 from CARLA.carla.models.api import MLModel

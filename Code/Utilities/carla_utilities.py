@@ -5,7 +5,7 @@ from CARLA.carla.models.catalog import MLModelCatalog
 from CARLA.carla.plotting.plotting import summary_plot, single_sample_plot
 from CARLA.carla.models.negative_instances import predict_negative_instances
 from CARLA.carla.recourse_methods import *
-import json, os, pickle
+import json, os, pickle, time
 import numpy as np
 from datetime import datetime
 import matplotlib.pyplot as plt
@@ -32,8 +32,8 @@ def make_test_benchmark(data_name="adult", model_name="ann"):
 
 
 def run_benchmark(benchmark, hyper_parameters):
-    if benchmark._counterfactuals.dropna().empty:
-        return pd.DataFrame()
+    # if benchmark._counterfactuals.dropna().empty:
+    #     return pd.DataFrame()
     evaluation_measures = [evaluation_catalog.SingleYNN(benchmark.mlmodel, hyper_parameters['singleYNN']),
                             evaluation_catalog.Stability(benchmark.mlmodel, hyper_parameters['stability']),
                             evaluation_catalog.Redundancy(benchmark.mlmodel, hyper_parameters['redundancy']),
@@ -159,7 +159,9 @@ def generate_counterfactuals_for_batch_factuals(model, hyper_parameters, factual
         
         # get counterfactuals using all methods
         if naive_gower_factuals.empty == False:
+            start_time = time.time()
             benchmark = Benchmark(mlmodel=model, factuals=naive_gower_factuals, recourse_method=naive_gower_method)
+            time_lapsed = time.time() - start_time
             bench_results = run_benchmark(benchmark, hyper_parameters)
             cfs = benchmark._counterfactuals.copy()
             cfs.dropna(inplace=True)
@@ -167,24 +169,31 @@ def generate_counterfactuals_for_batch_factuals(model, hyper_parameters, factual
             naive_gower_counterfactuals = naive_gower_counterfactuals.append(cfs)
             # drop all rows because retries is not needed for this method
             naive_gower_factuals.drop(naive_gower_factuals.index, inplace=True)
+            print(time_lapsed)
             print('naive_gower', len(naive_gower_counterfactuals))
         if gs_factuals.empty == False:
+            start_time = time.time()
             benchmark = Benchmark(mlmodel=model, factuals=gs_factuals, recourse_method=gs_method)
+            time_lapsed = time.time() - start_time
             bench_results = run_benchmark(benchmark, hyper_parameters)
             cfs = benchmark._counterfactuals.copy()
             cfs.dropna(inplace=True)
             gs_benchmarks = gs_benchmarks.append(bench_results)
             gs_counterfactuals = gs_counterfactuals.append(cfs)
             gs_factuals.drop(cfs.index, inplace=True)
+            print(time_lapsed)
             print('gs', len(gs_counterfactuals))
         if revise_factuals.empty == False:
+            start_time = time.time()
             benchmark = Benchmark(mlmodel=model, factuals=revise_factuals, recourse_method=revise_method)
+            time_lapsed = time.time() - start_time
             bench_results = run_benchmark(benchmark, hyper_parameters)
             cfs = benchmark._counterfactuals.copy()
             cfs.dropna(inplace=True)
             revise_benchmarks = revise_benchmarks.append(bench_results)
             revise_counterfactuals = revise_counterfactuals.append(cfs)
             revise_factuals.drop(cfs.index, inplace=True)
+            print(time_lapsed)
             print('revise', len(revise_counterfactuals))
         if cchvae_factuals.empty == False:
             benchmark = Benchmark(mlmodel=model, factuals=cchvae_factuals, recourse_method=cchvae_method)
@@ -200,13 +209,13 @@ def generate_counterfactuals_for_batch_factuals(model, hyper_parameters, factual
             for index, value in dice_factuals.iterrows():
                 benchmark = Benchmark(mlmodel=model, factuals=dice_factuals.filter(items=[index], axis=0), 
                                       recourse_method=dice_method)
+                benchmark._counterfactuals.index = [index]
                 dice_cf = benchmark._counterfactuals.copy()
                 dice_cf.dropna(inplace=True)
+                bench_results = run_benchmark(benchmark, hyper_parameters)
+                dice_benchmarks = dice_benchmarks.append(bench_results)
                 if dice_cf.empty == False:
-                    bench_results = run_benchmark(benchmark, hyper_parameters)
-                    dice_cf.index = [index]
                     dice_counterfactuals = dice_counterfactuals.append(dice_cf)
-                    dice_benchmarks = dice_benchmarks.append(bench_results)
                     dice_factuals.drop(index, inplace=True)
             print('dice', len(dice_counterfactuals))
     all_results = {}

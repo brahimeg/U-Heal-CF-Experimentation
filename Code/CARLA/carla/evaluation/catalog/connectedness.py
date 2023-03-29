@@ -51,7 +51,7 @@ class Connectedness(Evaluation):
         counterfactuals_without_nans, _ = remove_nans(counterfactuals)
 
         if counterfactuals_without_nans.empty:
-            conns = np.nan
+            conns = pd.Series()
         else:
             conns = self._connectedness(counterfactuals=counterfactuals_without_nans)
 

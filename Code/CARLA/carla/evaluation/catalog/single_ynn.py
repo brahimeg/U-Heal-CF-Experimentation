@@ -54,7 +54,7 @@ class SingleYNN(Evaluation):
         counterfactuals_without_nans, _ = remove_nans(counterfactuals)
 
         if counterfactuals_without_nans.empty:
-            ynns = np.nan
+            ynns = pd.Series()
         else:
             ynns = self._single_ynn(counterfactuals=counterfactuals_without_nans)
 

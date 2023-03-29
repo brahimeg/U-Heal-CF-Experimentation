@@ -65,7 +65,7 @@ class Sparsity(Evaluation):
         )
 
         if counterfactuals_without_nans.empty:
-            redundancies = []
+            redundancies = pd.Series()
         else:
             redundancies = self._sparsity(
                 factual_without_nans,

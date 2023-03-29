@@ -28,7 +28,7 @@ class Stability(Evaluation):
         )
 
         if counterfactuals_without_nans.empty:
-            stabilities = np.nan
+            stabilities = pd.Series()
         else:
             stabilities = self._stability(
                 counterfactuals_without_nans

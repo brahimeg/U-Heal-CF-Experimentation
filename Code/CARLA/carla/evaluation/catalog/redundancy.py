@@ -72,7 +72,7 @@ class Redundancy(Evaluation):
         )
 
         if counterfactuals_without_nans.empty:
-            redundancies = []
+            redundancies = pd.Series()
         else:
             redundancies = self._redundancy(
                 factual_without_nans,
