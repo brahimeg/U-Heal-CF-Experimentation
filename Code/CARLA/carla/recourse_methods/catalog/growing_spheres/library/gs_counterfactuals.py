@@ -48,7 +48,7 @@ def growing_spheres_search(
     n_search_samples=1000,
     p_norm=2,
     step=0.2,
-    max_iter=100,
+    max_iter=200,
 ):
 
     """

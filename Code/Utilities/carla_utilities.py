@@ -5,7 +5,10 @@ from CARLA.carla.models.catalog import MLModelCatalog
 from CARLA.carla.plotting.plotting import summary_plot, single_sample_plot
 from CARLA.carla.models.negative_instances import predict_negative_instances
 from CARLA.carla.recourse_methods import *
+from scipy.stats import anderson, shapiro, norm
 import json, os, pickle, time
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
 import numpy as np
 from datetime import datetime
 import matplotlib.pyplot as plt
@@ -149,16 +152,10 @@ def generate_counterfactuals_for_batch_factuals(model, hyper_parameters, factual
     cchvae_benchmarks = pd.DataFrame()
     
     
-    for i in range(retries):
-        # init all recourse methods
-        dice_method = Dice(model, hyperparams=hyper_parameters['dice'])
-        gs_method = GrowingSpheres(model, hyperparams=hyper_parameters['gs'])
-        naive_gower_method = NaiveGower(model, hyperparams=hyper_parameters['naive_gower'])
-        revise_method = Revise(model, model.data, hyperparams=hyper_parameters['revise'])
-        cchvae_method = CCHVAE(model, hyperparams=hyper_parameters['cchvae'])
-        
+    for i in range(retries):       
         # get counterfactuals using all methods
-        if naive_gower_factuals.empty == False:
+        if naive_gower_factuals.empty == False and "naive_gower" in rc_methods:
+            naive_gower_method = NaiveGower(model, hyperparams=hyper_parameters['naive_gower'])
             start_time = time.time()
             benchmark = Benchmark(mlmodel=model, factuals=naive_gower_factuals, recourse_method=naive_gower_method)
             time_lapsed = time.time() - start_time
@@ -171,7 +168,8 @@ def generate_counterfactuals_for_batch_factuals(model, hyper_parameters, factual
             naive_gower_factuals.drop(naive_gower_factuals.index, inplace=True)
             print(time_lapsed)
             print('naive_gower', len(naive_gower_counterfactuals))
-        if gs_factuals.empty == False:
+        if gs_factuals.empty == False and "gs" in rc_methods:
+            gs_method = GrowingSpheres(model, hyperparams=hyper_parameters['gs'])
             start_time = time.time()
             benchmark = Benchmark(mlmodel=model, factuals=gs_factuals, recourse_method=gs_method)
             time_lapsed = time.time() - start_time
@@ -183,7 +181,8 @@ def generate_counterfactuals_for_batch_factuals(model, hyper_parameters, factual
             gs_factuals.drop(cfs.index, inplace=True)
             print(time_lapsed)
             print('gs', len(gs_counterfactuals))
-        if revise_factuals.empty == False:
+        if revise_factuals.empty == False and "revise" in rc_methods:
+            revise_method = Revise(model, model.data, hyperparams=hyper_parameters['revise'])
             start_time = time.time()
             benchmark = Benchmark(mlmodel=model, factuals=revise_factuals, recourse_method=revise_method)
             time_lapsed = time.time() - start_time
@@ -195,7 +194,8 @@ def generate_counterfactuals_for_batch_factuals(model, hyper_parameters, factual
             revise_factuals.drop(cfs.index, inplace=True)
             print(time_lapsed)
             print('revise', len(revise_counterfactuals))
-        if cchvae_factuals.empty == False:
+        if cchvae_factuals.empty == False and "cchvae" in rc_methods:
+            cchvae_method = CCHVAE(model, hyperparams=hyper_parameters['cchvae'])
             benchmark = Benchmark(mlmodel=model, factuals=cchvae_factuals, recourse_method=cchvae_method)
             bench_results = run_benchmark(benchmark, hyper_parameters)
             cfs = benchmark._counterfactuals.copy()
@@ -204,7 +204,8 @@ def generate_counterfactuals_for_batch_factuals(model, hyper_parameters, factual
             cchvae_counterfactuals = cchvae_counterfactuals.append(cfs)
             cchvae_factuals.drop(cfs.index, inplace=True)
             print('cchvae', len(cchvae_counterfactuals))
-        if dice_factuals.empty == False:    
+        if dice_factuals.empty == False and "dice" in rc_methods:   
+            dice_method = Dice(model, hyperparams=hyper_parameters['dice'])
             # for loop only needed for dice due to index disappearance
             for index, value in dice_factuals.iterrows():
                 benchmark = Benchmark(mlmodel=model, factuals=dice_factuals.filter(items=[index], axis=0), 
@@ -249,3 +250,49 @@ class NpEncoder(json.JSONEncoder):
         if isinstance(obj, np.ndarray):
             return obj.tolist()
         return super(NpEncoder, self).default(obj)
+
+def normality_test_subject_predictions():
+    result = anderson(probs)
+
+    print('Statistic: %.3f' % result.statistic)
+    for i in range(len(result.critical_values)):
+     sl, cv = result.significance_level[i], result.critical_values[i]
+     if result.statistic < result.critical_values[i]:
+         print('%.3f: %.3f, data looks normal (fail to reject H0)' % (sl, cv))
+     else:
+         print('%.3f: %.3f, data does not look normal (reject H0)' % (sl, cv))
+
+    stat, p = shapiro(probs)
+    print('Statistics=%.3f, p=%.3f' % (stat, p))
+    # interpret
+    alpha = 0.05
+    if p > alpha:
+        print('Sample looks Gaussian (fail to reject H0)')
+    else:
+        print('Sample does not look Gaussian (reject H0)')
+    
+def generate_confidence_intervals(df_probas, df, model, confidence_level = 0.95):
+    df_probas['1_ci_upper'] = None
+    df_probas['1_ci_lower'] = None 
+    df_probas['0_ci_upper'] = None
+    df_probas['0_ci_lower'] = None
+
+    base_estimator_probs = []
+    for estimator in model['estimator'].estimators_:
+        pipe = Pipeline([('transformer', model['transformer']), ('estimator', estimator)])
+        base_estimator_probs.append(pipe.predict_proba(df))
+        
+    base_estimator_probs = np.array(base_estimator_probs)
+    
+    mean_probs = np.mean(base_estimator_probs, axis=0)
+    std_probs = np.std(base_estimator_probs, axis=0)
+    
+    z_value = norm.ppf(1 - (1 - confidence_level) / 2)
+    
+    for i in range(len(df)):
+        class_intervals = []
+        for j in range(mean_probs.shape[1]):
+            margin_of_error = z_value * std_probs[i, j]
+            df_probas[f'{j}_ci_lower'].iloc[i]  = mean_probs[i, j] - margin_of_error
+            df_probas[f'{j}_ci_upper'].iloc[i] = mean_probs[i, j] + margin_of_error
+    return df_probas

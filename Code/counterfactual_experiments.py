@@ -1,5 +1,11 @@
 from CARLA.carla.evaluation import Benchmark
 from CARLA.carla.models.negative_instances import predict_negative_instances
+from statsmodels.graphics.gofplots import qqplot
+from matplotlib import pyplot
+from scipy.stats import anderson, shapiro, norm
+import scipy.stats
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
 from CARLA.carla.recourse_methods import *
 from IPython.display import display
 from datetime import datetime
@@ -7,7 +13,7 @@ import CARLA.carla.evaluation.catalog as evaluation_catalog
 from Utilities.customclf import CustomClf
 from Plotting.plots import box_plot_benchmark_multiple_rc_methods
 from CARLA.carla.plotting.plotting import summary_plot, single_sample_plot
-from Utilities.carla_utilities import determine_feature_types, run_benchmark
+from Utilities.carla_utilities import determine_feature_types, run_benchmark, generate_confidence_intervals
 from Utilities.carla_utilities import generate_batch_counterfactuals_single_factual
 from Utilities.carla_utilities import save_all_data_and_parameters
 from Utilities.carla_utilities import generate_counterfactuals_for_batch_factuals
@@ -124,7 +130,7 @@ aucs = classifier_evaluation(features, remissions, cv=10, repetitions=repetition
 # Choose best classifier and continue
 average_aucs = np.array([(np.mean(aucs[:,i]),np.std(aucs[:,i])) for i in range(len(classifiers))])
 best_classifier = classifiers[np.argmax(average_aucs[:,0])]
-best_classifier = BaggingClassifier(best_classifier, n_estimators=30, bootstrap=False, n_jobs=-1)
+best_classifier = BaggingClassifier(best_classifier, n_estimators=5, bootstrap=False, n_jobs=-1)
 print(best_classifier)
 
 # Prepare and create carala dataset  
@@ -136,7 +142,8 @@ dataset = CsvCatalog(df=X_df,
                     continuous=continuous,
                     categorical=categorical,
                     immutables=immutable,
-                    target='Y')
+                    target='Y',
+                    scaling_method='MinMax')
 
 # Create custom classifier using carla interface
 # TODO: remove fit_full_data param to make pull request possible eventually
@@ -152,17 +159,72 @@ if ('Code' in os.getcwd()):
 else:
     hyper_params_path = os.path.join(os.getcwd(), 'Code', 'Utilities', 'carla_hyper_parameters.json')
 hyper_parameters = json.load(open(hyper_params_path))
+hyper_parameters['naive_gower']['retries'] = len(factuals)
 # hyper_parameters['stability']['ensemble'] = False
 
 test_factuals = factuals.copy()
 
 start_time = time.time()
-all_results = generate_counterfactuals_for_batch_factuals(model, hyper_parameters, test_factuals, 2)   
+all_results = generate_counterfactuals_for_batch_factuals(model, hyper_parameters, test_factuals, 1, ["naive_gower"])   
 save_all_data_and_parameters(carla_save_path, all_results, model, hyper_parameters, test_factuals)
 time_lapsed = time.time() - start_time
 print(time_lapsed)
 
- 
+# Example full pipeline
+subject = 23
+path = results_folder = os.path.join(carla_save_path, 
+                                     '29-03-2023T013022_BaggingClassifier(base_estimator=MLPClassifier(), bootstrap=False,n_estimators=30, n_jobs=-1)_125')
+benchmarks = pd.read_csv(os.path.join(path, 'gs_benchmarks.csv'), index_col=0)
+cfs = pd.read_csv(os.path.join(path, 'gs_counterfactuals.csv'), index_col=0)
+loaded_model = pickle.load(open(os.path.join(path, 'model.sav'), 'rb'))
+
+cfs_probas = pd.DataFrame(loaded_model.predict_proba(cfs), index=cfs.index)
+original_probas = pd.DataFrame(loaded_model.predict_proba(dataset.df[cfs.columns]))
+
+cfs_probas = generate_confidence_intervals(cfs_probas, cfs, loaded_model)
+original_probas = generate_confidence_intervals(original_probas, dataset.df[cfs.columns], loaded_model)
+
+merged_probas = original_probas.join(cfs_probas, lsuffix='_original', rsuffix='_cf')
+
+single_sample_plot(dataset.df.loc[subject], cfs.loc[subject], dataset, figsize=(5,2))
+
+
+a = dataset.df[cfs.columns].loc[subject]
+b = dataset.scaler.inverse_transform([a])
+aa = loaded_model['transformer'].inverse_transform([a])
+
+dataset.scaler
+
+# Normality tests for single subject
+probs = [est.predict_proba(cfs.loc[subject].values.reshape(1,-1)) for est in loaded_model['estimator'].estimators_]
+probs = np.array(probs)[:,0,1]
+qqplot(probs, line='s')
+pyplot.show()
+
+result = anderson(probs)
+
+print('Statistic: %.3f' % result.statistic)
+for i in range(len(result.critical_values)):
+ sl, cv = result.significance_level[i], result.critical_values[i]
+ if result.statistic < result.critical_values[i]:
+     print('%.3f: %.3f, data looks normal (fail to reject H0)' % (sl, cv))
+ else:
+     print('%.3f: %.3f, data does not look normal (reject H0)' % (sl, cv))
+
+stat, p = shapiro(probs)
+print('Statistics=%.3f, p=%.3f' % (stat, p))
+# interpret
+alpha = 0.05
+if p > alpha:
+    print('Sample looks Gaussian (fail to reject H0)')
+else:
+    print('Sample does not look Gaussian (reject H0)')
+
+
+##############################################################################################################################
+###############################################   RANDOM STUFF   ############################################################
+##############################################################################################################################
+
 #  Read in and plot results
 rc_methods = ['gs', 'revise', 'dice','naive_gower', 'cchvae']
 full_runs = [('MLP','29-03-2023T013022_BaggingClassifier(base_estimator=MLPClassifier(), bootstrap=False,n_estimators=30, n_jobs=-1)_125'), 
@@ -185,10 +247,17 @@ for run in full_runs:
             bench_results[clf][rc]['connectedness'] = bench_results[clf][rc]['connectedness'].replace(-1,0)
             bench_results[clf][rc] = bench_results[clf][rc].drop_duplicates()
     
-box_plot_benchmark_multiple_rc_methods(bench_results['SVC'], rc_methods, 'L0_distance')
+box_plot_benchmark_multiple_rc_methods(bench_results['MLP'], rc_methods, 'L2_distance')
+box_plot_benchmark_multiple_rc_methods(bench_results['SVC'], rc_methods, 'L2_distance')
+
+
 box_plot_benchmark_multiple_rc_methods(bench_results['SVC'], rc_methods, 'L1_distance')
 box_plot_benchmark_multiple_rc_methods(bench_results['SVC'], rc_methods, 'L2_distance')
+
+
 box_plot_benchmark_multiple_rc_methods(bench_results['SVC'], rc_methods, 'single-y-Nearest-Neighbours')
+box_plot_benchmark_multiple_rc_methods(bench_results['SVC'], rc_methods, 'single-y-Nearest-Neighbours')
+
 box_plot_benchmark_multiple_rc_methods(bench_results['SVC'], rc_methods, 'Redundancy')
 
 
@@ -211,10 +280,12 @@ sns.barplot(data=combined_data, x="Method", y='avg_time', hue='CLF')
 ax = sns.barplot(data=combined_data, x="CLF", y='Stability', hue='Method')
 ax = sns.barplot(data=combined_data, x="CLF", y='connectedness', hue='Method')
 ax = sns.barplot(data=combined_data, x="CLF", y='Redundancy', hue='Method')
+ax = sns.barplot(data=combined_data, x="Method", y='single-y-Nearest-Neighbours', hue='CLF')
+
 sns.move_legend(ax, "upper left", bbox_to_anchor=(1, 1))
 
-pd.crosstab(combined_data['Method'],combined_data['connectedness']).plot.barh(stacked=True)
-pd.crosstab(combined_data['Method'],combined_data['Stability']).plot.barh(stacked=True)
+pd.crosstab(combined_data['Method'], combined_data['connectedness']).plot.barh(stacked=True)
+pd.crosstab(combined_data['Method'], combined_data['Stability']).plot.barh(stacked=True)
 
 
 # single clf comparison plot
@@ -233,6 +304,28 @@ ax = sns.stripplot(data = combined_clf_data, x = 'L2_distance', y='clf',
                 color = 'black',
                 alpha = 0.3)
 
+# naive_gower_success_rate analysis
+res = {}
+for i in [1, 5, 10] + list(range(10,len(test_factuals), 10)):
+    hyper_parameters['naive_gower']['retries'] = i
+    start_time = time.time()
+    all_results = generate_counterfactuals_for_batch_factuals(model, hyper_parameters, test_factuals, 1, ["naive_gower"])   
+    save_all_data_and_parameters(carla_save_path, all_results, model, hyper_parameters, test_factuals)
+    time_lapsed = time.time() - start_time
+    res[i] = len(all_results['naive_gower'][1])
+    print(time_lapsed)
+
+
+ax = plt.axes()
+ax.set_title('Naive Gower Succes Rate Analysis (SVC)')
+plot_data = pd.DataFrame(columns = ['threshold count', 'succes rate %'])
+plot_data['threshold count'] = list(res.keys())
+plot_data['succes rate %'] = [x/len(factuals) for x in list(res.values())]
+sns.lineplot(data=plot_data, x='threshold count', y='succes rate %') 
+
+# random_state experiments
+rc_methods = ['gs', 'revise', 'dice','naive_gower', 'cchvae']
+connect_folder = os.path.join(carla_save_path, 'connectedness experiments')
 
 
 # connectedness experiments    
