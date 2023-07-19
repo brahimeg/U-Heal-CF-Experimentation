@@ -4,23 +4,28 @@ import numpy as np
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 import torch
+from sklearn.calibration import CalibratedClassifierCV
+from sklearn.ensemble import BaggingClassifier
+
 
 # Custom black-box models need to inherit from
 # the MLModel interface
 
 class CustomClf(MLModel):
-    def __init__(self, data, clf, fit_full_data=False):
+    def __init__(self, data, clf, scaling=False, fit_full_data=False, calibration=None, bagging=None):
         super().__init__(data)
         self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self._backend = 'pytorch'
         self._fit_full_data = fit_full_data
+        self._bagging = bagging
+        self._calibration = calibration
 
-        self._X = self.data.df[list(set(self.data.df_train.columns) - {self.data.target})]
-        self._y = self.data.df[self.data.target]
-        self._X_train = self.data.df_train[list(set(self.data.df_train.columns) - {self.data.target})]
-        self._X_test = self.data.df_test[list(set(self.data.df_test.columns) - {self.data.target})]
-        self._y_train = self.data.df_train[self.data.target]
-        self._y_test = self.data.df_test[self.data.target]
+        self._X = self.data.df[list(set(self.data.df_train.columns) - {self.data.target})].copy()
+        self._y = self.data.df[self.data.target].copy()
+        self._X_train = self.data.df_train[list(set(self.data.df_train.columns) - {self.data.target})].copy()
+        self._X_test = self.data.df_test[list(set(self.data.df_test.columns) - {self.data.target})].copy()
+        self._y_train = self.data.df_train[self.data.target].copy()
+        self._y_test = self.data.df_test[self.data.target].copy()
         
         # you can not only use the feature input order to
         # order the data but also to e.g. restrict the input
@@ -32,8 +37,15 @@ class CustomClf(MLModel):
         self._X =  self._X[self._feature_input_order]
         self._X_train = self._X_train[self._feature_input_order]
         self._X_test = self._X_test[self._feature_input_order]
-
-        self._mymodel = Pipeline([('transformer', StandardScaler()), ('estimator', clf)])
+            
+        if bagging != None:
+            clf = BaggingClassifier(clf, n_estimators=bagging, bootstrap=False, n_jobs=-1)
+            
+        if scaling:
+            self._mymodel = Pipeline([('transformer', StandardScaler()), ('estimator', clf)])
+        else:
+            self._mymodel = Pipeline([('estimator', clf)])
+            
         if self._fit_full_data:
             rand_idx = np.random.permutation(self._X.shape[0])
             self._X = self._X.iloc[rand_idx,:]
@@ -50,6 +62,32 @@ class CustomClf(MLModel):
                     self._X_train,
                     self._y_train
                 )
+            
+        if calibration != None:
+            if not scaling:
+                self._mymodel = Pipeline([('estimator', CalibratedClassifierCV(self._mymodel['estimator'], 
+                                                                            method=calibration, n_jobs=-1, cv="prefit"))])
+            else:
+                self._mymodel = Pipeline([('transformer', StandardScaler()), ('estimator', CalibratedClassifierCV(self._mymodel['estimator'], 
+                                                                                method=calibration, n_jobs=-1, cv="prefit"))])
+            
+            if self._fit_full_data:
+                rand_idx = np.random.permutation(self._X.shape[0])
+                self._X = self._X.iloc[rand_idx,:]
+                self._y = self._y.iloc[rand_idx]
+                self._mymodel.fit(
+                        self._X,
+                        self._y
+                    )            
+            else:
+                rand_idx = np.random.permutation(self._X_train.shape[0])
+                self._X_train = self._X_train.iloc[rand_idx,:]
+                self._y_train = self._y_train.iloc[rand_idx]
+                self._mymodel.fit(
+                        self._X_train,
+                        self._y_train
+                    )
+
             
     @property
     def X(self):

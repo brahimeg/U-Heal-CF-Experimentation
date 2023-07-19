@@ -1,4 +1,5 @@
 .venvLaptop
+.venvLaptop2
 .venv
 .env
 *.pyc

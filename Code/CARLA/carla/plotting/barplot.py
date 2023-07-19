@@ -16,12 +16,14 @@ def barplot(diff, ax):
 
     """
     # Color code the features
-    cmap = cm.get_cmap("coolwarm")
+    cmap = cm.get_cmap("RdBu")
     colors = [cmap(0.0) if diff[i] < 0 else cmap(1.0) for i in range(len(diff))]
 
     """
     Create the plot
     """
     sns.barplot(x=diff.values, y=diff.index, palette=colors, ax=ax)
+    for i in ax.containers:
+        ax.bar_label(i,label_type='center', color='w')
     ax.set_xlabel("change")
     ax.set_ylabel("feature")

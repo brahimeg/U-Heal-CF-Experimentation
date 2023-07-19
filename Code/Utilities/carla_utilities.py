@@ -232,7 +232,7 @@ def generate_counterfactuals_for_batch_factuals(model, hyper_parameters, factual
 def save_all_data_and_parameters(save_path, all_results, clf, hyper_parameters, factuals):
     folder_name = os.path.join(save_path, 
                                datetime.now().strftime("%d-%m-%YT%H%M%S") + '_' + 
-                               str(clf.raw_model[1]).replace("\n", "").replace("  ", "") + '_' + str(len(factuals)))
+                               str(clf.raw_model[0]).replace("\n", "").replace("  ", "") + '_' + str(len(factuals)))
     os.mkdir(folder_name)
     # save model, hyperparamters and all results
     pickle.dump(clf.raw_model, open(os.path.join(folder_name, 'model.sav'), 'wb'))
@@ -276,12 +276,14 @@ def generate_confidence_intervals(df_probas, df, model, confidence_level = 0.95)
     df_probas['1_ci_lower'] = None 
     df_probas['0_ci_upper'] = None
     df_probas['0_ci_lower'] = None
+    df_probas['0_error'] = None
+    df_probas['1_error'] = None
 
     base_estimator_probs = []
     for estimator in model['estimator'].estimators_:
-        pipe = Pipeline([('transformer', model['transformer']), ('estimator', estimator)])
+        pipe = Pipeline([ ('estimator', estimator)])
         base_estimator_probs.append(pipe.predict_proba(df))
-        
+
     base_estimator_probs = np.array(base_estimator_probs)
     
     mean_probs = np.mean(base_estimator_probs, axis=0)
@@ -295,4 +297,5 @@ def generate_confidence_intervals(df_probas, df, model, confidence_level = 0.95)
             margin_of_error = z_value * std_probs[i, j]
             df_probas[f'{j}_ci_lower'].iloc[i]  = mean_probs[i, j] - margin_of_error
             df_probas[f'{j}_ci_upper'].iloc[i] = mean_probs[i, j] + margin_of_error
+            df_probas[f'{j}_error'] = margin_of_error
     return df_probas

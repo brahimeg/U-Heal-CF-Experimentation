@@ -371,7 +371,17 @@ def feature_extraction(dynamic_features: dict, base_visit='2',
             else:
                 a = imputer[assessment].transform(dynamic_features1[key][assessment].values)
                 features[key][assessment] = pd.DataFrame(a, index=dynamic_features1[key][assessment].index)
-
+                
+            for d_col in features[key][assessment].columns:
+                sclr[key+assessment+str(d_col)] = scaler(scaler_type='robminmax')
+                sclr[key+assessment+str(d_col)].fit(features[key][assessment][d_col].values.reshape(-1, 1))
+                sc = sclr[key+assessment+str(d_col)].transform(features[key][assessment][d_col].values.reshape(-1, 1))
+                if np.isnan(sc).any():
+                    continue
+                else:
+                    features[key][assessment][d_col] = sc
+    
+    
         if static_features is not None:
 
             for k in static_features.keys():
@@ -406,7 +416,7 @@ def feature_extraction(dynamic_features: dict, base_visit='2',
                         static_feature_types[k][col] = ['con', 1]
                 features[key][k] = pd.DataFrame(np.concatenate(temp, axis=1), index=d.index)
 
-    return features, static_feature_types
+    return features, static_feature_types, sclr
 
 
 def compute_andreasen_remission_labels(measures):

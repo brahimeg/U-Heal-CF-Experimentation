@@ -49,8 +49,13 @@ class Stability(Evaluation):
             all_preds['orginal_label'] = self.mlmodel.predict(counterfactuals)
             all_preds.index=counterfactuals.index
             for i in range(self.threshold):
-                new_model = CustomClf(self.mlmodel.data, self.mlmodel.raw_model['estimator'],
-                                      self.mlmodel._fit_full_data)
+                print(i)
+                if "CalibratedClassifierCV" in str(self.mlmodel.raw_model):
+                    new_model = CustomClf(self.mlmodel.data, self.mlmodel.raw_model['estimator'].base_estimator.base_estimator,
+                                            fit_full_data = self.mlmodel._fit_full_data, calibration = self.mlmodel._calibration, bagging = self.mlmodel._bagging)
+                else:   
+                    new_model = CustomClf(self.mlmodel.data, self.mlmodel.raw_model['estimator'],
+                                        self.mlmodel._fit_full_data)
                 all_preds[f'pred_{i}'] = new_model.predict(counterfactuals)
             stabilities = [row.sum()/self.threshold for row in all_preds.iloc[:,1:].values]  
         return pd.Series(stabilities)

@@ -54,8 +54,9 @@ def classifier_evaluation(features, remissions, cv=10, repetitions=10, assessmen
     i = 0
     for name, clf in zip(classifier_names, classifiers):
         for r in range(repetitions):     
-            scaler = StandardScaler()
-            pipeline = Pipeline([('transformer', scaler), ('estimator', clf)])
+            # scaler = StandardScaler()
+            # pipeline = Pipeline([('transformer', scaler), ('estimator', clf)])
+            pipeline = Pipeline([ ('estimator', clf)])
             rand_idx = np.random.permutation(X.shape[0])
             X = X[rand_idx,:]
             Y = Y[rand_idx,:]

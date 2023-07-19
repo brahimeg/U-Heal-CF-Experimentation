@@ -21,8 +21,7 @@
     "vae_params": {
       "layers": [
         14,
-        7,
-        3
+        7
       ],
       "train": true,
       "lambda_reg": 0.000001,
@@ -68,7 +67,7 @@
   "stability": {
     "threshold": 50,
     "cf_label": 1,
-    "ensemble": true
+    "ensemble": false
   },
   "redundancy": {
     "cf_label": 1
