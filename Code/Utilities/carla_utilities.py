@@ -6,6 +6,8 @@ from CARLA.carla.plotting.plotting import summary_plot, single_sample_plot
 from CARLA.carla.models.negative_instances import predict_negative_instances
 from CARLA.carla.recourse_methods import *
 from scipy.stats import anderson, shapiro, norm
+from statsmodels.graphics.gofplots import qqplot
+from matplotlib import pyplot
 import json, os, pickle, time
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
@@ -228,6 +230,100 @@ def generate_counterfactuals_for_batch_factuals(model, hyper_parameters, factual
     
     return all_results
 
+def single_generate_counterfactuals(model, hyper_parameters, factual, retries=5,
+                                                rc_methods=["dice", "gs", "naive_gower", "revise", "cchvae"]):
+    factuals = pd.DataFrame(factual.values.reshape(1,len(factual)), columns=factual.index, index=[factual.name])
+    revise_factuals = factuals.copy()
+    gs_factuals = factuals.copy()
+    dice_factuals = factuals.copy()
+    naive_gower_factuals = factuals.copy()
+    cchvae_factuals = factuals.copy()
+    
+    revise_counterfactuals = pd.DataFrame()
+    gs_counterfactuals = pd.DataFrame()
+    naive_gower_counterfactuals = pd.DataFrame()
+    dice_counterfactuals = pd.DataFrame(columns=dice_factuals.columns)
+    cchvae_counterfactuals = pd.DataFrame()
+    
+    revise_benchmarks = pd.DataFrame()
+    gs_benchmarks = pd.DataFrame()
+    naive_gower_benchmarks = pd.DataFrame()
+    dice_benchmarks = pd.DataFrame()
+    cchvae_benchmarks = pd.DataFrame()
+    
+    
+    for i in range(retries):       
+        # get counterfactuals using all methods
+        if naive_gower_factuals.empty == False and "naive_gower" in rc_methods:
+            naive_gower_method = NaiveGower(model, hyperparams=hyper_parameters['naive_gower'])
+            start_time = time.time()
+            benchmark = Benchmark(mlmodel=model, factuals=naive_gower_factuals, recourse_method=naive_gower_method, single_mode=True)
+            time_lapsed = time.time() - start_time
+            bench_results = run_benchmark(benchmark, hyper_parameters)
+            cfs = benchmark._counterfactuals.copy()
+            cfs.dropna(inplace=True)
+            naive_gower_benchmarks = naive_gower_benchmarks.append(bench_results, ignore_index=True)
+            naive_gower_counterfactuals = naive_gower_counterfactuals.append(cfs, ignore_index=True)
+            # drop all rows because retries is not needed for this method
+            naive_gower_factuals.drop(naive_gower_factuals.index, inplace=True)
+            print(time_lapsed)
+            print('naive_gower', len(naive_gower_counterfactuals))
+        if gs_factuals.empty == False and "gs" in rc_methods:
+            gs_method = GrowingSpheres(model, hyperparams=hyper_parameters['gs'])
+            start_time = time.time()
+            benchmark = Benchmark(mlmodel=model, factuals=gs_factuals, recourse_method=gs_method)
+            time_lapsed = time.time() - start_time
+            bench_results = run_benchmark(benchmark, hyper_parameters)
+            cfs = benchmark._counterfactuals.copy()
+            cfs.dropna(inplace=True)
+            gs_benchmarks = gs_benchmarks.append(bench_results, ignore_index=True)
+            gs_counterfactuals = gs_counterfactuals.append(cfs, ignore_index=True)
+            print(time_lapsed)
+            print('gs', len(gs_counterfactuals))
+        if revise_factuals.empty == False and "revise" in rc_methods:
+            revise_method = Revise(model, model.data, hyperparams=hyper_parameters['revise'])
+            start_time = time.time()
+            benchmark = Benchmark(mlmodel=model, factuals=revise_factuals, recourse_method=revise_method)
+            time_lapsed = time.time() - start_time
+            bench_results = run_benchmark(benchmark, hyper_parameters)
+            cfs = benchmark._counterfactuals.copy()
+            cfs.dropna(inplace=True)
+            revise_benchmarks = revise_benchmarks.append(bench_results, ignore_index=True)
+            revise_counterfactuals = revise_counterfactuals.append(cfs, ignore_index=True)
+            print(time_lapsed)
+            print('revise', len(revise_counterfactuals))
+        if cchvae_factuals.empty == False and "cchvae" in rc_methods:
+            cchvae_method = CCHVAE(model, hyperparams=hyper_parameters['cchvae'])
+            benchmark = Benchmark(mlmodel=model, factuals=cchvae_factuals, recourse_method=cchvae_method)
+            bench_results = run_benchmark(benchmark, hyper_parameters)
+            cfs = benchmark._counterfactuals.copy()
+            cfs.dropna(inplace=True)
+            cchvae_benchmarks = cchvae_benchmarks.append(bench_results, ignore_index=True)
+            cchvae_counterfactuals = cchvae_counterfactuals.append(cfs, ignore_index=True)
+            print('cchvae', len(cchvae_counterfactuals))
+        if dice_factuals.empty == False and "dice" in rc_methods:   
+            dice_method = Dice(model, hyperparams=hyper_parameters['dice'])
+            # for loop only needed for dice due to index disappearance
+            for index, value in dice_factuals.iterrows():
+                benchmark = Benchmark(mlmodel=model, factuals=dice_factuals.filter(items=[index], axis=0), 
+                                      recourse_method=dice_method)
+                benchmark._counterfactuals.index = [index]
+                dice_cf = benchmark._counterfactuals.copy()
+                dice_cf.dropna(inplace=True)
+                bench_results = run_benchmark(benchmark, hyper_parameters)
+                dice_benchmarks = dice_benchmarks.append(bench_results, ignore_index=True)
+                if dice_cf.empty == False:
+                    dice_counterfactuals = dice_counterfactuals.append(dice_cf, ignore_index=True)
+            print('dice', len(dice_counterfactuals))
+    all_results = {}
+    all_results['revise'] = (revise_benchmarks, revise_counterfactuals)
+    all_results['dice'] = (dice_benchmarks, dice_counterfactuals)
+    all_results['gs'] = (gs_benchmarks, gs_counterfactuals)
+    all_results['cchvae'] = (cchvae_benchmarks, cchvae_counterfactuals)
+    all_results['naive_gower'] = (naive_gower_benchmarks, naive_gower_counterfactuals)
+    
+    return all_results
+
 
 def save_all_data_and_parameters(save_path, all_results, clf, hyper_parameters, factuals):
     folder_name = os.path.join(save_path, 
@@ -251,27 +347,9 @@ class NpEncoder(json.JSONEncoder):
             return obj.tolist()
         return super(NpEncoder, self).default(obj)
 
-def normality_test_subject_predictions():
-    result = anderson(probs)
-
-    print('Statistic: %.3f' % result.statistic)
-    for i in range(len(result.critical_values)):
-     sl, cv = result.significance_level[i], result.critical_values[i]
-     if result.statistic < result.critical_values[i]:
-         print('%.3f: %.3f, data looks normal (fail to reject H0)' % (sl, cv))
-     else:
-         print('%.3f: %.3f, data does not look normal (reject H0)' % (sl, cv))
-
-    stat, p = shapiro(probs)
-    print('Statistics=%.3f, p=%.3f' % (stat, p))
-    # interpret
-    alpha = 0.05
-    if p > alpha:
-        print('Sample looks Gaussian (fail to reject H0)')
-    else:
-        print('Sample does not look Gaussian (reject H0)')
     
-def generate_confidence_intervals(df_probas, df, model, confidence_level = 0.95):
+def generate_confidence_intervals(df, model, confidence_level = 0.95):
+    df_probas = pd.DataFrame(model.predict_proba(df), index=df.index)
     df_probas['1_ci_upper'] = None
     df_probas['1_ci_lower'] = None 
     df_probas['0_ci_upper'] = None
@@ -299,3 +377,79 @@ def generate_confidence_intervals(df_probas, df, model, confidence_level = 0.95)
             df_probas[f'{j}_ci_upper'].iloc[i] = mean_probs[i, j] + margin_of_error
             df_probas[f'{j}_error'] = margin_of_error
     return df_probas
+
+def single_sample_normality_test(cfs, model):
+    probs = [est.predict_proba(cfs.iloc[0].values.reshape(1,-1)) for est in model.raw_model['estimator'].estimators_]
+    probs = np.array(probs)[:,0,1]
+    qqplot(probs, line='s')
+    pyplot.show()
+
+    result = anderson(probs)
+
+    print('Anderson Statistic: %.3f' % result.statistic)
+    for i in range(len(result.critical_values)):
+        sl, cv = result.significance_level[i], result.critical_values[i]
+        if result.statistic < result.critical_values[i]:
+            print('%.3f: %.3f, data looks normal (fail to reject H0)' % (sl, cv))
+        else:
+            print('%.3f: %.3f, data does not look normal (reject H0)' % (sl, cv))
+
+    stat, p = shapiro(probs)
+    print('Shapiro Statistics=%.3f, p=%.3f' % (stat, p))
+    # interpret
+    alpha = 0.05
+    if p > alpha:
+        print('Sample looks normal (fail to reject H0)')
+    else:
+        print('Sample does not look normal (reject H0)')
+
+def return_best_cf(all_results, n=1):
+    rank_cols = ['L2_distance', 
+                'L1_distance',
+                'L0_distance',
+                'Redundancy',
+                'Sparsity',
+                'avg_time',
+                'Stability', 
+                'single-y-Nearest-Neighbours']
+    combined_bench = pd.DataFrame()
+    combined_cfs = pd.DataFrame()
+    for key, value in all_results.items():
+        temp_df = value[0]
+        temp_df['method'] = key
+        combined_bench = pd.concat([combined_bench, temp_df], axis=0)
+        combined_cfs = pd.concat([combined_cfs, value[1]], axis=0)
+    combined_bench.avg_time = combined_bench.avg_time.fillna(method='ffill')
+    combined_bench.dropna(subset=rank_cols, inplace=True)
+    combined_cfs.dropna(inplace=True)
+    combined_bench.reset_index(inplace=True, drop=True)
+    combined_cfs.reset_index(inplace=True, drop=True)
+    rank_df = combined_bench.copy()
+    rank_df.update(combined_bench[['L2_distance', 
+                                'L1_distance',
+                                'L0_distance',
+                                'Redundancy',
+                                'Sparsity',
+                                'avg_time']].rank(method='dense', ascending=True))
+    rank_df.update(combined_bench[['Stability', 
+                                'single-y-Nearest-Neighbours']].rank(method='dense', 
+                                                                    ascending=False))
+
+    rank_df['avg_rank'] = rank_df[rank_cols].mean(axis=1)
+    
+    if combined_bench.loc[rank_df[rank_df.connectedness == 1]
+                        .nsmallest(n, 'avg_rank').index].empty == False:
+        return (combined_cfs.loc[rank_df[rank_df.connectedness == 1].nsmallest(n, 'avg_rank').index], 
+                combined_bench.loc[rank_df[rank_df.connectedness == 1].nsmallest(n, 'avg_rank').index])
+    else:
+        print("No connected counterfactuals found, returning best counterfactuals regardless of connectedness.")
+        return (combined_cfs.loc[rank_df.nsmallest(n, 'avg_rank').index],
+                combined_bench.loc[rank_df.nsmallest(n, 'avg_rank').index])
+
+def transform_features_to_original_scale(cfs, factuals, subjects, scalers):
+    unscaled_factuals = factuals.copy()
+    unscaled_cfs = cfs.copy()
+    unscaled_cfs["('lifestyle', 'V2_CAFFEINE_CUPS', 2)"] = scalers["V2_CAFFEINE_CUPS"].inverse_transform(unscaled_cfs["('lifestyle', 'V2_CAFFEINE_CUPS', 2)"])
+    unscaled_factuals.loc[subjects]["('lifestyle', 'V2_CAFFEINE_CUPS', 2)"] = scalers["V2_CAFFEINE_CUPS"].inverse_transform(unscaled_factuals.loc[subjects]["('lifestyle', 'V2_CAFFEINE_CUPS', 2)"])
+    unscaled_cfs.index = subjects
+    return unscaled_cfs, unscaled_factuals

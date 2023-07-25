@@ -106,9 +106,9 @@ X, Y, subjects, X_df = compute_classifier_inputs(features, remissions, assessmen
 
 ############################### CLASSIFICATION ################################
 classifiers = [
-            LogisticRegression(),
+            # LogisticRegression(),
             # SVC(kernel="linear", probability=True),
-            # SVC(probability=True),
+            SVC(probability=True),
             # KNeighborsClassifier(),
             # MLPClassifier(),
             # DecisionTreeClassifier(),
@@ -172,7 +172,7 @@ time_lapsed = time.time() - start_time
 print(time_lapsed)
 
 # Example full pipeline
-path = os.path.join(carla_save_path, full_runs[1][1])
+path = os.path.join(carla_save_path, full_runs[2][1])
 # benchmarks = pd.read_csv(os.path.join(path, 'gs_benchmarks.csv'), index_col=0)
 cfs = pd.read_csv(os.path.join(path, 'gs_counterfactuals.csv'), index_col=0)
 loaded_model = pickle.load(open(os.path.join(path, 'model.sav'), 'rb'))
@@ -186,14 +186,13 @@ cfs = results['naive_gower'][1].copy()
 benchmarks = results['naive_gower'][0].copy()
 cfs["('lifestyle', 'V2_CAFFEINE_CUPS', 2)"] = scalers["V2_CAFFEINE_CUPS"].inverse_transform(cfs["('lifestyle', 'V2_CAFFEINE_CUPS', 2)"])
 sample["('lifestyle', 'V2_CAFFEINE_CUPS', 2)"] = scalers["V2_CAFFEINE_CUPS"].inverse_transform(sample["('lifestyle', 'V2_CAFFEINE_CUPS', 2)"])
-cfs_probas = pd.DataFrame(loaded_model.predict_proba(cfs), index=cfs.index)
-original_probas = pd.DataFrame(loaded_model.predict_proba(dataset.df[cfs.columns]))
-cfs_probas = generate_confidence_intervals(cfs_probas, cfs, loaded_model)
-original_probas = generate_confidence_intervals(original_probas, dataset.df[cfs.columns], loaded_model)
+cfs_probas = generate_confidence_intervals(cfs, loaded_model)
+original_probas = generate_confidence_intervals(dataset.df[cfs.columns].loc[cfs.index], loaded_model)
 merged_probas = original_probas.join(cfs_probas, lsuffix='_original', rsuffix='_cf')
 ssplt = single_sample_plot(sample.loc[subject], cfs.loc[subject], dataset, figsize=(5,2))
 print(benchmarks.loc[subject])
 print(merged_probas.loc[subject])
+
 
 sample = test_factuals.loc[[subject]]
 cfs = results['gs'][1].copy()

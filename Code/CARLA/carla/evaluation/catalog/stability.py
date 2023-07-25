@@ -49,7 +49,6 @@ class Stability(Evaluation):
             all_preds['orginal_label'] = self.mlmodel.predict(counterfactuals)
             all_preds.index=counterfactuals.index
             for i in range(self.threshold):
-                print(i)
                 if "CalibratedClassifierCV" in str(self.mlmodel.raw_model):
                     new_model = CustomClf(self.mlmodel.data, self.mlmodel.raw_model['estimator'].base_estimator.base_estimator,
                                             fit_full_data = self.mlmodel._fit_full_data, calibration = self.mlmodel._calibration, bagging = self.mlmodel._bagging)

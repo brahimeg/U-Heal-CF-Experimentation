@@ -2,6 +2,7 @@ import timeit
 from typing import List
 
 import pandas as pd
+import numpy as np
 
 from CARLA.carla.evaluation.api import Evaluation
 from CARLA.carla.models.api import MLModel
@@ -29,7 +30,8 @@ class Benchmark:
         mlmodel: MLModel,
         factuals: pd.DataFrame = None,
         recourse_method: RecourseMethod = None,
-        counterfactuals: pd.DataFrame = pd.DataFrame()
+        counterfactuals: pd.DataFrame = pd.DataFrame(),
+        single_mode : bool = False
     ) -> None:
 
         self.mlmodel = mlmodel
@@ -39,6 +41,8 @@ class Benchmark:
             self._factuals = self.mlmodel.get_ordered_features(factuals.copy())
             self._recourse_method = recourse_method
             self._counterfactuals = recourse_method.get_counterfactuals(self._factuals)
+            if single_mode:
+                self._factuals = self.mlmodel.get_ordered_features(pd.DataFrame(np.repeat(factuals.copy().values, len(self._counterfactuals), axis=0), columns=factuals.columns))
         else:
             self._factuals = None
             self._counterfactuals = counterfactuals

@@ -37,7 +37,8 @@
   },
   "gs": null,
   "naive_gower": {
-    "retries": 20
+    "retries": 20,
+    "single_mode": false
   },
   "cchvae": {
     "data_name": "test_data",
@@ -65,9 +66,9 @@
     "cf_label": 1
   },
   "stability": {
-    "threshold": 50,
+    "threshold": 20,
     "cf_label": 1,
-    "ensemble": false
+    "ensemble": true
   },
   "redundancy": {
     "cf_label": 1

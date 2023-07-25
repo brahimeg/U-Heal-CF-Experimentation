@@ -34,7 +34,7 @@ class NaiveGower(RecourseMethod):
     Returns:
         _type_: _description_
     """
-    _DEFAULT_HYPERPARAMS = {"retries": 0}
+    _DEFAULT_HYPERPARAMS = {"retries": 0, "single_mode": False}
 
     def __init__(self, mlmodel: MLModel, hyperparams=None) -> None:
 
@@ -57,6 +57,7 @@ class NaiveGower(RecourseMethod):
         ]
         self._continuous = self._mlmodel.data.continuous
         self._retries = self._params["retries"]
+        self._single_mode = self._params["single_mode"]
         self._categorical_enc = encode_feature_names(
             self._mlmodel.data.categorical, self._mlmodel.feature_input_order
         )
@@ -75,21 +76,41 @@ class NaiveGower(RecourseMethod):
         positive_factuals = full_dataset.loc[positive_indices].copy()
         positive_factuals = self._mlmodel.get_ordered_features(positive_factuals)
         list_cfs = []
-        for index, value in factuals.iterrows():
-            results = smallest_indices(np.nan_to_num(matrix[index][positive_indices], nan=1), self._retries+1)
-            for i in range(self._retries):
+        if self._single_mode:
+            results = smallest_indices(np.nan_to_num(matrix[factuals.iloc[0].name][positive_indices], nan=1), self._retries)
+            for i in range(self._retries - 1):
                 best_cf = positive_factuals.iloc[results['index'][i+1]].copy()
-                best_cf.name = index
-                best_cf[self._immutables] = value[self._immutables]
+                best_cf.name = factuals.iloc[0].name
+                best_cf[self._immutables] = factuals.iloc[0][self._immutables]
                 if self._mlmodel.predict(best_cf.values.reshape(1,len(best_cf)))[0] == 1:
                     list_cfs.append(best_cf)
-                    break
                 elif i == self._retries - 1:
                     list_cfs.append(best_cf)
                     break
                 else:
                     continue
-        df_cfs = check_counterfactuals(self._mlmodel, list_cfs, factuals.index)
-        df_cfs = self._mlmodel.get_ordered_features(df_cfs)
-        return df_cfs
+            df_cfs = check_counterfactuals(self._mlmodel, 
+                                           pd.DataFrame(np.array(list_cfs), columns=self._mlmodel.feature_input_order), 
+                                           factuals.index)
+            df_cfs = self._mlmodel.get_ordered_features(df_cfs)
+            return df_cfs
+        else:
+            for index, value in factuals.iterrows():
+                results = smallest_indices(np.nan_to_num(matrix[index][positive_indices], nan=1), self._retries)
+                for i in range(self._retries - 1):
+                    # i+1 because the first index is the factual itself
+                    best_cf = positive_factuals.iloc[results['index'][i+1]].copy()
+                    best_cf.name = index
+                    best_cf[self._immutables] = value[self._immutables]
+                    if self._mlmodel.predict(best_cf.values.reshape(1,len(best_cf)))[0] == 1:
+                        list_cfs.append(best_cf)
+                        break
+                    elif i == self._retries - 1:
+                        list_cfs.append(best_cf)
+                        break
+                    else:
+                        continue
+            df_cfs = check_counterfactuals(self._mlmodel, list_cfs, factuals.index)
+            df_cfs = self._mlmodel.get_ordered_features(df_cfs)
+            return df_cfs
 

@@ -59,7 +59,7 @@ def single_sample_plot(factual, counterfactual, data, figsize=(7, 7)):
     plot_diff = plot_diff[abs(plot_diff) > 0.0000001]
     plot_diff = plot_diff[plot_diff != 0]
     barplot(plot_diff, ax)
-    return fig
+    return plot_diff, fig
 
 
 
