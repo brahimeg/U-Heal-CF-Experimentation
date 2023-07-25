@@ -36,7 +36,7 @@
     "posthoc_sparsity_param": 0.3
   },
   "gs": null,
-  "naive_gower": {
+  "gower_cf": {
     "retries": 20,
     "single_mode": false
   },

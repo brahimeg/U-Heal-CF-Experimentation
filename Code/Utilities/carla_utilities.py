@@ -134,42 +134,42 @@ def generate_batch_counterfactuals_single_factual(dataset, recourse_method, fact
         return df
     
 def generate_counterfactuals_for_batch_factuals(model, hyper_parameters, factuals, retries=5,
-                                                rc_methods=["dice", "gs", "naive_gower", "revise", "cchvae"]):
+                                                rc_methods=["dice", "gs", "gower_cf", "revise", "cchvae"]):
     revise_factuals = factuals.copy()
     gs_factuals = factuals.copy()
     dice_factuals = factuals.copy()
-    naive_gower_factuals = factuals.copy()
+    gower_cf_factuals = factuals.copy()
     cchvae_factuals = factuals.copy()
     
     revise_counterfactuals = pd.DataFrame()
     gs_counterfactuals = pd.DataFrame()
-    naive_gower_counterfactuals = pd.DataFrame()
+    gower_cf_counterfactuals = pd.DataFrame()
     dice_counterfactuals = pd.DataFrame(columns=dice_factuals.columns)
     cchvae_counterfactuals = pd.DataFrame()
     
     revise_benchmarks = pd.DataFrame()
     gs_benchmarks = pd.DataFrame()
-    naive_gower_benchmarks = pd.DataFrame()
+    gower_cf_benchmarks = pd.DataFrame()
     dice_benchmarks = pd.DataFrame()
     cchvae_benchmarks = pd.DataFrame()
     
     
     for i in range(retries):       
         # get counterfactuals using all methods
-        if naive_gower_factuals.empty == False and "naive_gower" in rc_methods:
-            naive_gower_method = NaiveGower(model, hyperparams=hyper_parameters['naive_gower'])
+        if gower_cf_factuals.empty == False and "gower_cf" in rc_methods:
+            gower_cf_method = GowerCF(model, hyperparams=hyper_parameters['gower_cf'])
             start_time = time.time()
-            benchmark = Benchmark(mlmodel=model, factuals=naive_gower_factuals, recourse_method=naive_gower_method)
+            benchmark = Benchmark(mlmodel=model, factuals=gower_cf_factuals, recourse_method=gower_cf_method)
             time_lapsed = time.time() - start_time
             bench_results = run_benchmark(benchmark, hyper_parameters)
             cfs = benchmark._counterfactuals.copy()
             cfs.dropna(inplace=True)
-            naive_gower_benchmarks = naive_gower_benchmarks.append(bench_results)
-            naive_gower_counterfactuals = naive_gower_counterfactuals.append(cfs)
+            gower_cf_benchmarks = gower_cf_benchmarks.append(bench_results)
+            gower_cf_counterfactuals = gower_cf_counterfactuals.append(cfs)
             # drop all rows because retries is not needed for this method
-            naive_gower_factuals.drop(naive_gower_factuals.index, inplace=True)
+            gower_cf_factuals.drop(gower_cf_factuals.index, inplace=True)
             print(time_lapsed)
-            print('naive_gower', len(naive_gower_counterfactuals))
+            print('gower_cf', len(gower_cf_counterfactuals))
         if gs_factuals.empty == False and "gs" in rc_methods:
             gs_method = GrowingSpheres(model, hyperparams=hyper_parameters['gs'])
             start_time = time.time()
@@ -226,48 +226,48 @@ def generate_counterfactuals_for_batch_factuals(model, hyper_parameters, factual
     all_results['dice'] = (dice_benchmarks, dice_counterfactuals)
     all_results['gs'] = (gs_benchmarks, gs_counterfactuals)
     all_results['cchvae'] = (cchvae_benchmarks, cchvae_counterfactuals)
-    all_results['naive_gower'] = (naive_gower_benchmarks, naive_gower_counterfactuals)
+    all_results['gower_cf'] = (gower_cf_benchmarks, gower_cf_counterfactuals)
     
     return all_results
 
 def single_generate_counterfactuals(model, hyper_parameters, factual, retries=5,
-                                                rc_methods=["dice", "gs", "naive_gower", "revise", "cchvae"]):
+                                                rc_methods=["dice", "gs", "gower_cf", "revise", "cchvae"]):
     factuals = pd.DataFrame(factual.values.reshape(1,len(factual)), columns=factual.index, index=[factual.name])
     revise_factuals = factuals.copy()
     gs_factuals = factuals.copy()
     dice_factuals = factuals.copy()
-    naive_gower_factuals = factuals.copy()
+    gower_cf_factuals = factuals.copy()
     cchvae_factuals = factuals.copy()
     
     revise_counterfactuals = pd.DataFrame()
     gs_counterfactuals = pd.DataFrame()
-    naive_gower_counterfactuals = pd.DataFrame()
+    gower_cf_counterfactuals = pd.DataFrame()
     dice_counterfactuals = pd.DataFrame(columns=dice_factuals.columns)
     cchvae_counterfactuals = pd.DataFrame()
     
     revise_benchmarks = pd.DataFrame()
     gs_benchmarks = pd.DataFrame()
-    naive_gower_benchmarks = pd.DataFrame()
+    gower_cf_benchmarks = pd.DataFrame()
     dice_benchmarks = pd.DataFrame()
     cchvae_benchmarks = pd.DataFrame()
     
     
     for i in range(retries):       
         # get counterfactuals using all methods
-        if naive_gower_factuals.empty == False and "naive_gower" in rc_methods:
-            naive_gower_method = NaiveGower(model, hyperparams=hyper_parameters['naive_gower'])
+        if gower_cf_factuals.empty == False and "gower_cf" in rc_methods:
+            gower_cf_method = GowerCF(model, hyperparams=hyper_parameters['gower_cf'])
             start_time = time.time()
-            benchmark = Benchmark(mlmodel=model, factuals=naive_gower_factuals, recourse_method=naive_gower_method, single_mode=True)
+            benchmark = Benchmark(mlmodel=model, factuals=gower_cf_factuals, recourse_method=gower_cf_method, single_mode=True)
             time_lapsed = time.time() - start_time
             bench_results = run_benchmark(benchmark, hyper_parameters)
             cfs = benchmark._counterfactuals.copy()
             cfs.dropna(inplace=True)
-            naive_gower_benchmarks = naive_gower_benchmarks.append(bench_results, ignore_index=True)
-            naive_gower_counterfactuals = naive_gower_counterfactuals.append(cfs, ignore_index=True)
+            gower_cf_benchmarks = gower_cf_benchmarks.append(bench_results, ignore_index=True)
+            gower_cf_counterfactuals = gower_cf_counterfactuals.append(cfs, ignore_index=True)
             # drop all rows because retries is not needed for this method
-            naive_gower_factuals.drop(naive_gower_factuals.index, inplace=True)
+            gower_cf_factuals.drop(gower_cf_factuals.index, inplace=True)
             print(time_lapsed)
-            print('naive_gower', len(naive_gower_counterfactuals))
+            print('gower_cf', len(gower_cf_counterfactuals))
         if gs_factuals.empty == False and "gs" in rc_methods:
             gs_method = GrowingSpheres(model, hyperparams=hyper_parameters['gs'])
             start_time = time.time()
@@ -320,7 +320,7 @@ def single_generate_counterfactuals(model, hyper_parameters, factual, retries=5,
     all_results['dice'] = (dice_benchmarks, dice_counterfactuals)
     all_results['gs'] = (gs_benchmarks, gs_counterfactuals)
     all_results['cchvae'] = (cchvae_benchmarks, cchvae_counterfactuals)
-    all_results['naive_gower'] = (naive_gower_benchmarks, naive_gower_counterfactuals)
+    all_results['gower_cf'] = (gower_cf_benchmarks, gower_cf_counterfactuals)
     
     return all_results
 

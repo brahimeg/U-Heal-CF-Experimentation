@@ -16,5 +16,5 @@ from .catalog import (
     Revise,
     Roar,
     Wachter, 
-    NaiveGower
+    GowerCF
 )

@@ -160,13 +160,13 @@ if ('Code' in os.getcwd()):
 else:
     hyper_params_path = os.path.join(os.getcwd(), 'Code', 'Utilities', 'carla_hyper_parameters.json')
 hyper_parameters = json.load(open(hyper_params_path))
-hyper_parameters['naive_gower']['retries'] = len(factuals)
-# hyper_parameters['stability']['ensemble'] = False
+hyper_parameters['gower_cf']['retries'] = len(factuals)
+hyper_parameters['stability']['ensemble'] = False
 
 test_factuals = factuals.copy()
 
 start_time = time.time()
-all_results = generate_counterfactuals_for_batch_factuals(model, hyper_parameters, test_factuals, 2, ["naive_gower", "gs"])   
+all_results = generate_counterfactuals_for_batch_factuals(model, hyper_parameters, test_factuals[:4], 2, ["gower_cf", "gs"])   
 save_all_data_and_parameters(carla_save_path, all_results, model, hyper_parameters, test_factuals)
 time_lapsed = time.time() - start_time
 print(time_lapsed)
@@ -179,11 +179,11 @@ loaded_model = pickle.load(open(os.path.join(path, 'model.sav'), 'rb'))
 
 subject = 335
 sample = test_factuals.loc[[subject]]
-results = generate_counterfactuals_for_batch_factuals(model, hyper_parameters, sample, 1, ["gs", "naive_gower"])
+results = generate_counterfactuals_for_batch_factuals(model, hyper_parameters, sample, 1, ["gs", "gower_cf"])
 
 sample = test_factuals.loc[[subject]]
-cfs = results['naive_gower'][1].copy()
-benchmarks = results['naive_gower'][0].copy()
+cfs = results['gower_cf'][1].copy()
+benchmarks = results['gower_cf'][0].copy()
 cfs["('lifestyle', 'V2_CAFFEINE_CUPS', 2)"] = scalers["V2_CAFFEINE_CUPS"].inverse_transform(cfs["('lifestyle', 'V2_CAFFEINE_CUPS', 2)"])
 sample["('lifestyle', 'V2_CAFFEINE_CUPS', 2)"] = scalers["V2_CAFFEINE_CUPS"].inverse_transform(sample["('lifestyle', 'V2_CAFFEINE_CUPS', 2)"])
 cfs_probas = generate_confidence_intervals(cfs, loaded_model)
@@ -245,8 +245,8 @@ org_gs_bench['Type'] = 'Original'
 org_gs_bench['connectedness'] = org_gs_bench['connectedness'].replace(-1,0)
 org_gs_bench.avg_time = org_gs_bench.avg_time.fillna(method='ffill').mean()
 org_gs_bench.Success_Rate = org_gs_bench.Success_Rate.fillna(method='ffill').mean()
-org_ng_cfs = pd.read_csv(os.path.join(org_path, 'naive_gower_counterfactuals.csv'), index_col=0)
-org_ng_bench = pd.read_csv(os.path.join(org_path, 'naive_gower_benchmarks.csv'), index_col=0)
+org_ng_cfs = pd.read_csv(os.path.join(org_path, 'gower_cf_counterfactuals.csv'), index_col=0)
+org_ng_bench = pd.read_csv(os.path.join(org_path, 'gower_cf_benchmarks.csv'), index_col=0)
 org_ng_bench['Type'] = 'Original'
 org_ng_bench['connectedness'] = org_ng_bench['connectedness'].replace(-1,0)
 org_ng_bench.avg_time = org_ng_bench.avg_time.fillna(method='ffill').mean()
@@ -259,8 +259,8 @@ calib_gs_bench['Type'] = 'Calibrated'
 calib_gs_bench['connectedness'] = calib_gs_bench['connectedness'].replace(-1,0)
 calib_gs_bench.avg_time = calib_gs_bench.avg_time.fillna(method='ffill').mean()
 calib_gs_bench.Success_Rate = calib_gs_bench.Success_Rate.fillna(method='ffill').mean()
-calib_ng_cfs = pd.read_csv(os.path.join(calib_path, 'naive_gower_counterfactuals.csv'), index_col=0)
-calib_ng_bench = pd.read_csv(os.path.join(calib_path, 'naive_gower_benchmarks.csv'), index_col=0)
+calib_ng_cfs = pd.read_csv(os.path.join(calib_path, 'gower_cf_counterfactuals.csv'), index_col=0)
+calib_ng_bench = pd.read_csv(os.path.join(calib_path, 'gower_cf_benchmarks.csv'), index_col=0)
 calib_ng_bench['Type'] = 'Calibrated'
 calib_ng_bench['connectedness'] = calib_ng_bench['connectedness'].replace(-1,0)
 calib_ng_bench.avg_time = calib_ng_bench.avg_time.fillna(method='ffill').mean()
@@ -318,7 +318,7 @@ ax.set(xlabel=None)
 ##############################################################################################################################
 
 #  Read in and plot results
-rc_methods = ['gs', 'revise', 'dice','naive_gower', 'cchvae']
+rc_methods = ['gs', 'revise', 'dice','gower_cf', 'cchvae']
 full_runs = [('MLP','_final_results//31-05-2023T141114_BaggingClassifier(base_estimator=MLPClassifier(), bootstrap=False,n_estimators=100, n_jobs=-1)_125'), 
               ('LR','_final_results//30-05-2023T152016_BaggingClassifier(base_estimator=LogisticRegression(), bootstrap=False,n_estimators=100, n_jobs=-1)_112'),
               ('SVC','_final_results//30-05-2023T182758_BaggingClassifier(base_estimator=SVC(probability=True), bootstrap=False,n_estimators=100, n_jobs=-1)_89')]
@@ -486,15 +486,15 @@ ax = sns.stripplot(data = combined_clf_data, x = 'L2_distance', y='clf',
                 color = 'black',
                 alpha = 0.3)
 
-# naive_gower_success_rate analysis
+# gower_cf_success_rate analysis
 res = {}
 for i in [1, 5, 10] + list(range(10,len(test_factuals), 10)):
-    hyper_parameters['naive_gower']['retries'] = i
+    hyper_parameters['gower_cf']['retries'] = i
     start_time = time.time()
-    all_results = generate_counterfactuals_for_batch_factuals(model, hyper_parameters, test_factuals, 1, ["naive_gower"])   
+    all_results = generate_counterfactuals_for_batch_factuals(model, hyper_parameters, test_factuals, 1, ["gower_cf"])   
     # save_all_data_and_parameters(carla_save_path, all_results, model, hyper_parameters, test_factuals)
     time_lapsed = time.time() - start_time
-    res[i] = len(all_results['naive_gower'][1])
+    res[i] = len(all_results['gower_cf'][1])
     print(time_lapsed)
 
 
@@ -509,12 +509,12 @@ sns.lineplot(data=plot_data)
 
 
 # random_state experiments
-rc_methods = ['gs', 'revise', 'dice','naive_gower', 'cchvae']
+rc_methods = ['gs', 'revise', 'dice','gower_cf', 'cchvae']
 connect_folder = os.path.join(carla_save_path, 'connectedness experiments')
 
 
 # connectedness experiments    
-rc_methods = ['gs', 'revise', 'dice','naive_gower', 'cchvae']
+rc_methods = ['gs', 'revise', 'dice','gower_cf', 'cchvae']
 connect_folder = os.path.join(carla_save_path, 'connectedness experiments')
 cfs_for_conns = {}
 models = {}

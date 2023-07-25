@@ -22,7 +22,7 @@ def smallest_indices(ary, n):
     values = flat[indices]
     return {'index': indices, 'values': values}
 
-class NaiveGower(RecourseMethod):
+class GowerCF(RecourseMethod):
     """_summary_
 
     Args:
@@ -78,13 +78,13 @@ class NaiveGower(RecourseMethod):
         list_cfs = []
         if self._single_mode:
             results = smallest_indices(np.nan_to_num(matrix[factuals.iloc[0].name][positive_indices], nan=1), self._retries)
-            for i in range(self._retries - 1):
+            for i in range(self._retries):
                 best_cf = positive_factuals.iloc[results['index'][i+1]].copy()
                 best_cf.name = factuals.iloc[0].name
                 best_cf[self._immutables] = factuals.iloc[0][self._immutables]
                 if self._mlmodel.predict(best_cf.values.reshape(1,len(best_cf)))[0] == 1:
                     list_cfs.append(best_cf)
-                elif i == self._retries - 1:
+                elif i == self._retries - 2:
                     list_cfs.append(best_cf)
                     break
                 else:
@@ -97,7 +97,7 @@ class NaiveGower(RecourseMethod):
         else:
             for index, value in factuals.iterrows():
                 results = smallest_indices(np.nan_to_num(matrix[index][positive_indices], nan=1), self._retries)
-                for i in range(self._retries - 1):
+                for i in range(self._retries):
                     # i+1 because the first index is the factual itself
                     best_cf = positive_factuals.iloc[results['index'][i+1]].copy()
                     best_cf.name = index
@@ -105,7 +105,7 @@ class NaiveGower(RecourseMethod):
                     if self._mlmodel.predict(best_cf.values.reshape(1,len(best_cf)))[0] == 1:
                         list_cfs.append(best_cf)
                         break
-                    elif i == self._retries - 1:
+                    elif i == self._retries - 2:
                         list_cfs.append(best_cf)
                         break
                     else:
