@@ -106,16 +106,16 @@ if ('Code' in os.getcwd()):
 else:
     hyper_params_path = os.path.join(os.getcwd(), 'Code', 'Utilities', 'carla_hyper_parameters.json')
 hyper_parameters = json.load(open(hyper_params_path))
-hyper_parameters['naive_gower']['retries'] = len(dataset.df) - len(factuals)
-hyper_parameters['naive_gower']['single_mode'] = True
+hyper_parameters['gower_cf']['retries'] = len(dataset.df) - len(factuals)
+hyper_parameters['gower_cf']['single_mode'] = True
 
 # Choose subject from factuals to generate counterfactuals for
 subject = factuals.index[0]
 all_results = single_generate_counterfactuals(model, hyper_parameters, factuals.loc[subject],
-                                                          3, ["naive_gower","gs", "revise"])   
+                                                          3, ["gower_cf","gs", "revise"])   
 
 # rank generated counterfactuals using average rank method across different metrics
-cf, bench = return_best_cf(all_results)
+cf, bench = return_best_cf(all_results, 2)
 cf_unscaled, factual_unscaled = transform_features_to_original_scale(cf, factuals, [subject], scalers)
 bench.index = [subject]
 cf.index = [subject]
