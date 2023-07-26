@@ -430,9 +430,9 @@ def return_best_cf(all_results, n=1):
                                 'L0_distance',
                                 'Redundancy',
                                 'Sparsity',
-                                'avg_time']].rank(method='dense', ascending=True))
+                                'avg_time']].rank(method='average', ascending=True))
     rank_df.update(combined_bench[['Stability', 
-                                'single-y-Nearest-Neighbours']].rank(method='dense', 
+                                'single-y-Nearest-Neighbours']].rank(method='average', 
                                                                     ascending=False))
 
     rank_df['avg_rank'] = rank_df[rank_cols].mean(axis=1)

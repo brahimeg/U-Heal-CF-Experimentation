@@ -84,6 +84,8 @@ class GowerCF(RecourseMethod):
                 best_cf[self._immutables] = factuals.iloc[0][self._immutables]
                 if self._mlmodel.predict(best_cf.values.reshape(1,len(best_cf)))[0] == 1:
                     list_cfs.append(best_cf)
+                    if i == self._retries - 2:
+                        break
                 elif i == self._retries - 2:
                     list_cfs.append(best_cf)
                     break
