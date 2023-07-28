@@ -108,23 +108,33 @@ else:
 hyper_parameters = json.load(open(hyper_params_path))
 hyper_parameters['gower_cf']['retries'] = len(dataset.df) - len(factuals)
 hyper_parameters['gower_cf']['single_mode'] = True
+# hyper_parameters['stability']['ensemble'] = False
 
-# Choose subject from factuals to generate counterfactuals for
-subject = factuals.index[0]
-all_results = single_generate_counterfactuals(model, hyper_parameters, factuals.loc[subject],
-                                                          3, ["gower_cf","gs", "revise"])   
+# Choose a subject from factuals to generate counterfactuals for
+subject = factuals.index[2]
+all_results = single_generate_counterfactuals(model, hyper_parameters, factuals.loc[subject], 5, ["gower_cf","gs"])   
 
-# rank generated counterfactuals using average rank method across different metrics
-cf, bench = return_best_cf(all_results, 2)
-cf_unscaled, factual_unscaled = transform_features_to_original_scale(cf, factuals, [subject], scalers)
+# Rank generated counterfactuals using average rank method across different metrics
+cf, bench, ranks_df = return_best_cf(all_results, 1, ['L2_distance', 
+                                                    #  'L1_distance',
+                                                    #  'L0_distance',
+                                                    'Redundancy',
+                                                    'Sparsity',
+                                                    #  'avg_time',
+                                                    'Stability', 
+                                                    'single-y-Nearest-Neighbours'])
+cf_unscaled, factuals_unscaled = transform_features_to_original_scale(cf, factuals, [subject], scalers)
 bench.index = [subject]
 cf.index = [subject]
-# do normality test using the bagged classifier and generate CI intervals for the best ranked counterfactual
+
+# Perform normality test using the bagged classifier and generate CI intervals for the best ranked counterfactual
 single_sample_normality_test(cf, model)
 cf_probas = generate_confidence_intervals(cf, model.raw_model)
 original_probas = generate_confidence_intervals(factuals.loc[[subject]], model.raw_model)
 merged_probas = original_probas.join(cf_probas, lsuffix='_original', rsuffix='_cf')
-diff_vals, ssplt = single_sample_plot(factual_unscaled.loc[subject], cf_unscaled.loc[subject], dataset, figsize=(5,2))
+diff_vals, ssplt = single_sample_plot(factuals_unscaled.loc[subject], cf_unscaled.loc[subject], dataset, figsize=(5,2))
+
+# Print results
 print(diff_vals)
 print(bench.loc[subject])
 print(merged_probas.loc[subject])

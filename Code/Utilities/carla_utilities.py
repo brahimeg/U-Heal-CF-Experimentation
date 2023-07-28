@@ -403,15 +403,17 @@ def single_sample_normality_test(cfs, model):
     else:
         print('Sample does not look normal (reject H0)')
 
-def return_best_cf(all_results, n=1):
-    rank_cols = ['L2_distance', 
-                'L1_distance',
-                'L0_distance',
-                'Redundancy',
-                'Sparsity',
-                'avg_time',
-                'Stability', 
-                'single-y-Nearest-Neighbours']
+def return_best_cf(all_results, n=1, rank_columns= ['L2_distance', 
+                                                    'L1_distance',
+                                                    'L0_distance',
+                                                    'Redundancy',
+                                                    'Sparsity',
+                                                    'avg_time',
+                                                    'Stability', 
+                                                    'single-y-Nearest-Neighbours']):
+    rank_down_cols = ['Stability', 'single-y-Nearest-Neighbours']
+    rank_up_cols = ['L2_distance', 'L1_distance','L0_distance', 'Redundancy', 'avg_time', 'Sparsity']
+    
     combined_bench = pd.DataFrame()
     combined_cfs = pd.DataFrame()
     for key, value in all_results.items():
@@ -419,37 +421,38 @@ def return_best_cf(all_results, n=1):
         temp_df['method'] = key
         combined_bench = pd.concat([combined_bench, temp_df], axis=0)
         combined_cfs = pd.concat([combined_cfs, value[1]], axis=0)
+    combined_bench.drop(columns=['Success_Rate', 'y-Nearest-Neighbours'], inplace=True)
     combined_bench.avg_time = combined_bench.avg_time.fillna(method='ffill')
-    combined_bench.dropna(subset=rank_cols, inplace=True)
+    combined_bench.dropna(subset=rank_columns, inplace=True)
     combined_cfs.dropna(inplace=True)
     combined_bench.reset_index(inplace=True, drop=True)
     combined_cfs.reset_index(inplace=True, drop=True)
+    combined_cfs.drop_duplicates(inplace=True)
+    combined_bench = combined_bench.loc[combined_cfs.index]
     rank_df = combined_bench.copy()
-    rank_df.update(combined_bench[['L2_distance', 
-                                'L1_distance',
-                                'L0_distance',
-                                'Redundancy',
-                                'Sparsity',
-                                'avg_time']].rank(method='average', ascending=True))
-    rank_df.update(combined_bench[['Stability', 
-                                'single-y-Nearest-Neighbours']].rank(method='average', 
-                                                                    ascending=False))
+    rank_df.update(combined_bench[list(set(rank_columns) - set(rank_down_cols))]
+                   .rank(method='average', ascending=True))
+    rank_df.update(combined_bench[list(set(rank_columns) - set(rank_up_cols))]
+                   .rank(method='average', ascending=False))
 
-    rank_df['avg_rank'] = rank_df[rank_cols].mean(axis=1)
+    rank_df['avg_rank'] = rank_df[rank_columns].mean(axis=1)
+    combined_bench['avg_rank']  = rank_df['avg_rank']
     
     if combined_bench.loc[rank_df[rank_df.connectedness == 1]
                         .nsmallest(n, 'avg_rank').index].empty == False:
         return (combined_cfs.loc[rank_df[rank_df.connectedness == 1].nsmallest(n, 'avg_rank').index], 
-                combined_bench.loc[rank_df[rank_df.connectedness == 1].nsmallest(n, 'avg_rank').index])
+                combined_bench.loc[rank_df[rank_df.connectedness == 1].nsmallest(n, 'avg_rank').index],
+                rank_df)
     else:
         print("No connected counterfactuals found, returning best counterfactuals regardless of connectedness.")
         return (combined_cfs.loc[rank_df.nsmallest(n, 'avg_rank').index],
-                combined_bench.loc[rank_df.nsmallest(n, 'avg_rank').index])
+                combined_bench.loc[rank_df.nsmallest(n, 'avg_rank').index],
+                rank_df)
 
 def transform_features_to_original_scale(cfs, factuals, subjects, scalers):
     unscaled_factuals = factuals.copy()
     unscaled_cfs = cfs.copy()
-    unscaled_cfs["('lifestyle', 'V2_CAFFEINE_CUPS', 2)"] = scalers["V2_CAFFEINE_CUPS"].inverse_transform(unscaled_cfs["('lifestyle', 'V2_CAFFEINE_CUPS', 2)"])
-    unscaled_factuals.loc[subjects]["('lifestyle', 'V2_CAFFEINE_CUPS', 2)"] = scalers["V2_CAFFEINE_CUPS"].inverse_transform(unscaled_factuals.loc[subjects]["('lifestyle', 'V2_CAFFEINE_CUPS', 2)"])
+    unscaled_cfs["('lifestyle', 'V2_CAFFEINE_CUPS', 2)"] = scalers["V2_CAFFEINE_CUPS"].inverse_transform(cfs["('lifestyle', 'V2_CAFFEINE_CUPS', 2)"])
+    unscaled_factuals["('lifestyle', 'V2_CAFFEINE_CUPS', 2)"] = scalers["V2_CAFFEINE_CUPS"].inverse_transform(factuals["('lifestyle', 'V2_CAFFEINE_CUPS', 2)"])
     unscaled_cfs.index = subjects
     return unscaled_cfs, unscaled_factuals
