@@ -330,8 +330,12 @@ for run in full_runs:
     bench_results[clf] = {}
     rc_results[clf] = {}
     for rc in rc_methods:
-        rc_results[clf][rc] = pd.read_csv(os.path.join(results_folder, rc+'_counterfactuals.csv'), index_col=0)
-        bench_results[clf][rc] = pd.read_csv(os.path.join(results_folder, rc+'_benchmarks.csv'), index_col=0)
+        try:
+            rc_results[clf][rc] = pd.read_csv(os.path.join(results_folder, rc+'_counterfactuals.csv'), index_col=0)
+            bench_results[clf][rc] = pd.read_csv(os.path.join(results_folder, rc+'_benchmarks.csv'), index_col=0)
+        except:
+            rc_results[clf][rc] = pd.read_csv(os.path.join(results_folder, 'naive_gower'+'_counterfactuals.csv'), index_col=0)
+            bench_results[clf][rc] = pd.read_csv(os.path.join(results_folder, 'naive_gower'+'_benchmarks.csv'), index_col=0)
         if not bench_results[clf][rc].empty:
             bench_results[clf][rc].avg_time = bench_results[clf][rc].avg_time.fillna(method='ffill').mean()
             bench_results[clf][rc].Success_Rate = bench_results[clf][rc].Success_Rate.fillna(method='ffill').mean()
@@ -350,7 +354,7 @@ combined_data.index.names = ['CLF', 'Method', 'index']
 combined_data.reset_index(level=['CLF', 'Method'], inplace=True)
 combined_data.reset_index(inplace=True, drop=True)
 
-
+sns.set(style="white", palette="ch:start=.2,rot=-.3")
 sns.boxplot(data = combined_data, x = 'L2_distance', y='Method')
     
 box_plot_benchmark_multiple_rc_methods(bench_results['MLP'], rc_methods, 'L2_distance')
@@ -378,6 +382,12 @@ ax = sns.barplot(data=combined_data, x="Method", y='avg_time', hue='CLF')
 sns.set(style="white", palette="ch:start=.2,rot=-.3")
 fig, axes = plt.subplots(3, 2, figsize=(15, 15), sharey=True)
 fig.tight_layout(pad=4)
+ax = sns.barplot(ax=axes[0,1], data=combined_data, x="Method", y='Success_Rate', hue='CLF')
+ax.legend(loc="upper right", fontsize='17')
+# ax.get_legend().remove()
+ax.set_xlabel("b) Success rates grouped per classifier", fontsize = 20)
+ax.set_ylabel(ylabel= 'Stability', fontsize = 15)
+ax.tick_params(labelsize=15)
 ax = sns.barplot(ax=axes[0,0], data=combined_data, x="Method", y='Stability', hue='CLF')
 ax.get_legend().remove()
 ax.set_xlabel("a) Stability ratios grouped per classifier", fontsize = 20)
@@ -387,29 +397,29 @@ ax = sns.barplot(ax=axes[2,1], data=combined_data, x="Method", y='connectedness'
 ax.get_legend().remove()
 ax.set(xlabel=None)
 ax.tick_params(labelsize=15)
-ax.set_xlabel("e) Connectedness ratios grouped per classifier", fontsize = 20)
+ax.set_xlabel("f) Connectedness ratios grouped per classifier", fontsize = 20)
 ax.set_ylabel(ylabel= 'Connectedness', fontsize = 15)
 ax = sns.barplot(ax=axes[1,0], data=combined_data, x="Method", y='Redundancy', hue='CLF')
 ax.get_legend().remove()
 ax.set(xlabel=None)
 ax.tick_params(labelsize=15)
 ax.set_ylabel(ylabel= 'Redundancy', fontsize = 15)
-ax.set_xlabel("b) Redundancy ratios grouped per classifier", fontsize = 20)
+ax.set_xlabel("c) Redundancy ratios grouped per classifier", fontsize = 20)
 ax = sns.barplot(ax=axes[1,1], data=combined_data, x="Method", y='Sparsity', hue='CLF')
 ax.get_legend().remove()
 ax.set(xlabel=None)
 ax.tick_params(labelsize=15)
 ax.set_ylabel(ylabel= 'Sparsity', fontsize = 15)
-ax.set_xlabel("c) Sparsity ratios grouped per classifier", fontsize = 20)
+ax.set_xlabel("d) Sparsity ratios grouped per classifier", fontsize = 20)
 ax = sns.barplot(ax=axes[2,0], data=combined_data, x="Method", y='single-y-Nearest-Neighbours', hue='CLF')
 ax.get_legend().remove()
 ax.set(xlabel=None)
 ax.tick_params(labelsize=15)
 ax.set_ylabel(ylabel= 'Single yNN', fontsize = 15)
-ax.set_xlabel("d) Single yNN ratios grouped per classifier", fontsize = 20)
+ax.set_xlabel("e) Single yNN ratios grouped per classifier", fontsize = 20)
 handles, labels = ax.get_legend_handles_labels()
-fig.delaxes(axes[0][1])
-fig.legend(handles, labels, bbox_to_anchor=(0.8, .84), fontsize='18')
+# fig.delaxes(axes[0][1])
+# fig.legend(handles, labels, bbox_to_anchor=(0.8, .84), fontsize='18')
 
 
 sns.set(style="white", palette="ch:start=.2,rot=-.3")

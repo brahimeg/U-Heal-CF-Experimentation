@@ -34,7 +34,7 @@ class GowerCF(RecourseMethod):
     Returns:
         _type_: _description_
     """
-    _DEFAULT_HYPERPARAMS = {"retries": 0, "single_mode": False}
+    _DEFAULT_HYPERPARAMS = {"retries": 1, "single_mode": False}
 
     def __init__(self, mlmodel: MLModel, hyperparams=None) -> None:
 

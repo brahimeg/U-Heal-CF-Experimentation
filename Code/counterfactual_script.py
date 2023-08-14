@@ -23,7 +23,7 @@ if ('Code' in os.getcwd()):
     base_path = os.path.join(os.path.abspath(os.path.join(os.getcwd(), os.pardir)), 'Data', 'Optimise')
 else:
     base_path = os.path.join(os.getcwd(), 'Data', 'Optimise')
-data_path = base_path + '\\'
+data_path = base_path + '/'
 save_path = os.path.join(base_path, 'Results', 'Classifiers')
 carla_save_path = os.path.join(base_path, 'Results', 'Counterfactuals')
 
@@ -94,13 +94,25 @@ dataset = CsvCatalog(df=X_df,
 
 # Create custom classifier using carla interface
 # TODO: remove fit_full_data param to make pull request possible eventually
+classifiers = [
+            # LogisticRegression(),
+            # SVC(kernel="linear", probability=True),
+            # SVC(probability=True),
+            # KNeighborsClassifier(),
+            # MLPClassifier(),
+            # DecisionTreeClassifier(),
+            # RandomForestClassifier(),
+            # AdaBoostClassifier(),
+            # GradientBoostingClassifier(),
+            # GaussianNB(),
+            ]
 model = CustomClf(dataset, clf=SVC(probability=True), scaling=False, fit_full_data=True, calibration=None, bagging=50)
 
 # predict negative instances to flip later on using one of the counterfactual generation methods
 factuals = predict_negative_instances(model, dataset.df[model.X.columns])
 print(len(factuals))
 
-# read in default hyperparameters for recourse methods
+# read in default hyperparameters for recourse methods and adjust to account for single mode generation
 if ('Code' in os.getcwd()):
     hyper_params_path = os.path.join(os.getcwd(), 'Utilities', 'carla_hyper_parameters.json')
 else:
@@ -111,8 +123,9 @@ hyper_parameters['gower_cf']['single_mode'] = True
 # hyper_parameters['stability']['ensemble'] = False
 
 # Choose a subject from factuals to generate counterfactuals for
-subject = factuals.index[2]
-all_results = single_generate_counterfactuals(model, hyper_parameters, factuals.loc[subject], 5, ["gower_cf","gs"])   
+# subject = int(input(f"Please enter a subject ID: {factuals.index.tolist()}\n"))
+subject = factuals.index[1]
+all_results = single_generate_counterfactuals(model, hyper_parameters, factuals.loc[subject], 10, rc_methods=["dice", "gs", "gower_cf", "revise", "cchvae"])   
 
 # Rank generated counterfactuals using average rank method across different metrics
 cf, bench, ranks_df = return_best_cf(all_results, 1, ['L2_distance', 
@@ -138,3 +151,5 @@ diff_vals, ssplt = single_sample_plot(factuals_unscaled.loc[subject], cf_unscale
 print(diff_vals)
 print(bench.loc[subject])
 print(merged_probas.loc[subject])
+
+

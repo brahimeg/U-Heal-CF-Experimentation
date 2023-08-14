@@ -94,9 +94,12 @@ class Dice(RecourseMethod):
         # Generate counterfactuals
         features_to_vary = []
         muttables = list(set(self._categorical+self._continuous) - set(self._immutables))
-        for x in self._dice_data.feature_names:
-            if 'lifestyle' in x:
-                features_to_vary.append(x)
+        for feature in self._dice_data.feature_names:
+            for mut in muttables:
+                if mut in feature:
+                    features_to_vary.append(feature)
+                    break
+        
         # try except needed in case none of the factuals have counterfactuals
         try:
             dice_exp = self._dice.generate_counterfactuals(

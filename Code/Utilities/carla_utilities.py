@@ -266,6 +266,7 @@ def single_generate_counterfactuals(model, hyper_parameters, factual, retries=5,
             gower_cf_counterfactuals = gower_cf_counterfactuals.append(cfs, ignore_index=True)
             # drop all rows because retries is not needed for this method
             gower_cf_factuals.drop(gower_cf_factuals.index, inplace=True)
+            gower_cf_counterfactuals = gower_cf_counterfactuals.iloc[:retries]
             print(time_lapsed)
             print('gower_cf', len(gower_cf_counterfactuals))
         if gs_factuals.empty == False and "gs" in rc_methods:
@@ -381,9 +382,9 @@ def generate_confidence_intervals(df, model, confidence_level = 0.95):
 def single_sample_normality_test(cfs, model):
     probs = [est.predict_proba(cfs.iloc[0].values.reshape(1,-1)) for est in model.raw_model['estimator'].estimators_]
     probs = np.array(probs)[:,0,1]
-    qqplot(probs, line='s')
+    fig = qqplot(probs, line='s')
     pyplot.show()
-
+    
     result = anderson(probs)
 
     print('Anderson Statistic: %.3f' % result.statistic)
@@ -402,6 +403,8 @@ def single_sample_normality_test(cfs, model):
         print('Sample looks normal (fail to reject H0)')
     else:
         print('Sample does not look normal (reject H0)')
+
+    return fig
 
 def return_best_cf(all_results, n=1, rank_columns= ['L2_distance', 
                                                     'L1_distance',
@@ -452,7 +455,7 @@ def return_best_cf(all_results, n=1, rank_columns= ['L2_distance',
 def transform_features_to_original_scale(cfs, factuals, subjects, scalers):
     unscaled_factuals = factuals.copy()
     unscaled_cfs = cfs.copy()
-    unscaled_cfs["('lifestyle', 'V2_CAFFEINE_CUPS', 2)"] = scalers["V2_CAFFEINE_CUPS"].inverse_transform(cfs["('lifestyle', 'V2_CAFFEINE_CUPS', 2)"])
-    unscaled_factuals["('lifestyle', 'V2_CAFFEINE_CUPS', 2)"] = scalers["V2_CAFFEINE_CUPS"].inverse_transform(factuals["('lifestyle', 'V2_CAFFEINE_CUPS', 2)"])
+    unscaled_cfs["('lifestyle', 'V2_CAFFEINE_CUPS', 2)"] = scalers["V2_CAFFEINE_CUPS"].inverse_transform(unscaled_cfs["('lifestyle', 'V2_CAFFEINE_CUPS', 2)"])
+    unscaled_factuals["('lifestyle', 'V2_CAFFEINE_CUPS', 2)"] = scalers["V2_CAFFEINE_CUPS"].inverse_transform(unscaled_factuals["('lifestyle', 'V2_CAFFEINE_CUPS', 2)"])
     unscaled_cfs.index = subjects
     return unscaled_cfs, unscaled_factuals
