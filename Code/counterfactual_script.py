@@ -125,7 +125,7 @@ hyper_parameters['gower_cf']['single_mode'] = True
 # Choose a subject from factuals to generate counterfactuals for
 # subject = int(input(f"Please enter a subject ID: {factuals.index.tolist()}\n"))
 subject = factuals.index[1]
-all_results = single_generate_counterfactuals(model, hyper_parameters, factuals.loc[subject], 10, rc_methods=["dice", "gs", "gower_cf", "revise", "cchvae"])   
+all_results = single_generate_counterfactuals(model, hyper_parameters, factuals.loc[subject], 3, rc_methods=["dice"])   
 
 # Rank generated counterfactuals using average rank method across different metrics
 cf, bench, ranks_df = return_best_cf(all_results, 1, ['L2_distance', 

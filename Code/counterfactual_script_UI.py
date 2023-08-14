@@ -17,7 +17,7 @@ from sklearn.naive_bayes import GaussianNB
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-import warnings, os, json, sys, threading, math
+import warnings, os, json, threading
 warnings.filterwarnings("ignore")
 
 ################################### PATHS ###################################    
@@ -35,6 +35,10 @@ if not os.path.isdir(save_path):
     os.mkdir(save_path)
      
 
+def onFrameConfigure(canvas):
+    '''Reset the scroll region to encompass the inner frame'''
+    canvas.configure(scrollregion=canvas.bbox("all"))
+    
 def init_classifier():
     global dataset
     global model
@@ -105,6 +109,7 @@ def get_negative_instances():
     
 
 def execute_best_cf():
+
     best_cf_button.config(state=tk.DISABLED)
     chosen_rc_methods = [rc for rc, var in rc_method_vars.items() if var.get()]
     chosen_metrics = [metric for metric, var in metric_vars.items() if var.get()]
@@ -120,10 +125,15 @@ def execute_best_cf():
 
     subject = int(negative_instances_listbox.get(negative_instances_listbox.curselection()))
     output_text.insert(tk.INSERT, f"Subject: {subject}\n")
-    all_results = single_generate_counterfactuals(model, hyper_parameters, factuals.loc[subject], 1, chosen_rc_methods)   
+    output_text.insert(tk.INSERT, "Running.... \n")
+    all_results = single_generate_counterfactuals(model, hyper_parameters, factuals.loc[subject], int(n_value.get()), chosen_rc_methods)   
 
     # Rank generated counterfactuals using average rank method across different metrics
     cf, bench, ranks_df = return_best_cf(all_results, 1, chosen_metrics)
+    if cf.empty:
+        output_text.insert(tk.END, "No CFs found for these settings! \n\n")
+        best_cf_button.config(state=tk.NORMAL)
+        return
     cf_unscaled, factuals_unscaled = transform_features_to_original_scale(cf, factuals, [subject], scalers)
     bench.index = [subject]
     cf.index = [subject]
@@ -135,12 +145,12 @@ def execute_best_cf():
     diff_vals, ssplt = single_sample_plot(factuals_unscaled.loc[subject], cf_unscaled.loc[subject], dataset, figsize=(5,2))
     display_figure(ssplt, 20, 0)
     # Print results
-    output_text.insert(tk.INSERT, diff_vals)
-    output_text.insert(tk.INSERT, "\n")
-    output_text.insert(tk.INSERT, bench.loc[subject])
-    output_text.insert(tk.INSERT, "\n")
-    output_text.insert(tk.INSERT, merged_probas.loc[subject])
-    output_text.insert(tk.INSERT, "\n\n")
+    output_text.insert(tk.END, diff_vals)
+    output_text.insert(tk.END, "\n")
+    output_text.insert(tk.END, bench.loc[subject])
+    output_text.insert(tk.END, "\n")
+    output_text.insert(tk.END, merged_probas.loc[subject])
+    output_text.insert(tk.END, "\n\n")
     best_cf_button.config(state=tk.NORMAL)
     
 def display_figure(fig, row=18, column=4):
@@ -150,7 +160,8 @@ def display_figure(fig, row=18, column=4):
     fig.tight_layout()
     canvas = FigureCanvasTkAgg(fig, master=frame, )
     canvas_widget = canvas.get_tk_widget()
-    canvas_widget.grid(row=row, column=column,columnspan=4, sticky=tk.N+tk.S+tk.E+tk.W)
+    canvas_widget.config(width=150, height=250) 
+    canvas_widget.grid(row=row, column=column,columnspan=4,pady=1, ipady=1, sticky=tk.N+tk.S+tk.E+tk.W)
     canvas.draw()
 
 # ... (rest of your code)
@@ -165,9 +176,26 @@ def start_init_classifier():
 
 root = tk.Tk()
 root.title("CARLA Experiment UI")
+root.geometry('700x800')
 
-frame = ttk.Frame(root, padding="15")
-frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+# Create a canvas inside the main window
+canvas = tk.Canvas(root)
+canvas.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+
+# Add a vertical scrollbar to the main window, linked to the canvas
+scrollbar = ttk.Scrollbar(root, orient="vertical", command=canvas.yview)
+scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
+canvas.configure(yscrollcommand=scrollbar.set, width=680, height=780)
+
+# Create a frame inside the canvas
+frame = ttk.Frame(canvas, padding="15")
+frame_id = canvas.create_window((0, 0), window=frame, anchor="nw")
+
+# Bind the frame's size change to an update function
+frame.bind("<Configure>", lambda e: onFrameConfigure(canvas))
+
+# frame = ttk.Frame(root, padding="15")
+# frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
 
 # Step 1: Classifier Dropdown and Button
 ttk.Label(frame, text="1. Select Classifier").grid(rowspan=1, column=0, row=0, padx=1, pady=1)
@@ -190,7 +218,7 @@ init_clf_button.grid(rowspan=1, column=0, row=2, pady=1, padx=1)
 # Step 2: Negative Instances Button and Listbox
 get_neg_instances_button = ttk.Button(frame, text="2. Get Negative Instances", command=get_negative_instances, state=tk.DISABLED)
 get_neg_instances_button.grid(rowspan=1, row=0, column=1,  pady=1, padx=1)
-negative_instances_listbox = tk.Listbox(frame)
+negative_instances_listbox = tk.Listbox(frame, exportselection=False)
 negative_instances_listbox.grid(rowspan=4, row=1, column=1, pady=1, padx=1)
 
 ttk.Label(frame).grid(column=0, row=6, padx=1, pady=1, sticky=tk.W)
@@ -218,11 +246,17 @@ for i, (metric, var) in enumerate(metric_vars.items()):
     else:
         temp = int(len(metric_vars.items())/2)+1
         ttk.Checkbutton(frame, text=metric, variable=var).grid(column=2, row=i+8-temp, padx=1, pady=1, sticky=tk.W)
+        
+ttk.Label(frame, text="Number of CFs per method:").grid(row=17, column=0, padx=1, pady=1, sticky=tk.W)
+n_value = tk.StringVar()
+n_entry = ttk.Entry(frame, textvariable=n_value)
+n_entry.grid(row=17, column=1, padx=1, pady=1, sticky=tk.W)
+n_entry.insert(0, "3")  
+
 best_cf_button = ttk.Button(frame, text="5. Find best CF", command=start_execute_best_cf, state=tk.DISABLED)
-best_cf_button.grid(columnspan=3,column=0, row=17, pady=20)
+best_cf_button.grid(columnspan=1,column=2, row=17, pady=20)
 
 output_text = scrolledtext.ScrolledText(frame, width=70, height=20)
 output_text.grid(columnspan=4, row=18, padx=5, pady=5)
         
-
 root.mainloop()
