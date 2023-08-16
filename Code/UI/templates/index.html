@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CARLA Experiment UI</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap">
+    <style>
+        .section{
+            margin-bottom: 10px;
+        }
+        body {
+            font-family: 'Roboto', sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <h1>CARLA Experiment UI</h1>
+    <form action="{{ url_for('init_classifier') }}" method="post">
+        <label for="classifier">1. Select Classifier:</label>
+        <select id="classifier" name="classifier">
+            <option value="Logistic Regression">Logistic Regression</option>
+            <option value="SVC Linear">SVC Linear</option>
+            <option value="SVC RBF">SVC RBF</option>
+            <option value="KNeighbors Classifier">KNeighbors Classifier</option>
+            <option value="DecisionTree">DecisionTree</option>
+            <option value="RandomForest">RandomForest</option>
+            <option value="Ada Boost">ADA Boost</option>
+            <option value="Gradient Boosting">Gradient Boosting</option>
+            <option value="GaussianNB">GaussianNB</option>
+            <!-- Add other classifier options here -->
+        </select>
+        <button type="submit" id="initClassifierButton">Initialize Classifier</button>
+    </form>
+    <!-- Display initialization status here -->
+    <p id="initClfStatus">{{ init_status }}</p>
+    <div class="section">
+    <form id="getNegativeForm">
+    <label for="negativeInstanceSelect">2. Select subject:</label>
+    <select id="negativeInstanceSelect">
+        <option value="" disabled selected>Select</option>
+    </select>
+    <button type="button" id="getNegativeButton" disabled>Get Negative Instances</button>
+    </form>
+    </div>
+    <label>3. CF Methods:</label>
+    <div class="section">
+        <!-- Step 3: CF Methods -->
+        <div id="rcMethodsCheckboxes">
+            <label><input type="checkbox" value="gs"> gs</label><br>
+            <label><input type="checkbox" value="gower_cf"> gower_cf</label><br>
+            <label><input type="checkbox" value="dice"> dice</label><br>
+            <label><input type="checkbox" value="revise"> revise</label><br>
+            <label><input type="checkbox" value="cchvae"> cchvae</label><br>
+        </div>
+    </div>
+    
+    <label>4. Metrics used for Ranking:</label>
+    <div class="section">
+        <!-- Step 4: Metrics used for Ranking -->
+        <div id="metricsCheckboxes">
+            <label><input type="checkbox" value="L2_distance"> L2_distance</label><br>
+            <label><input type="checkbox" value="L1_distance"> L1_distance</label><br>
+            <label><input type="checkbox" value="L0_distance"> L0_distance</label><br>
+            <label><input type="checkbox" value="Redundancy"> Redundancy</label><br>
+            <label><input type="checkbox" value="Sparsity"> Sparsity</label><br>
+            <label><input type="checkbox" value="avg_time"> avg_time</label><br>
+            <label><input type="checkbox" value="Stability"> Stability</label><br>
+            <label><input type="checkbox" value="single-y-Nearest-Neighbours"> single-y-Nearest-Neighbours</label><br>
+        </div>
+    </div>
+
+    <div class="section">
+        <!-- Step 5: Input field for "n" parameter -->
+        <label for="nParameterInput">5. Number of CFs per method:</label>
+        <input type="number" id="nParameterInput" name="nParameterInput" min="1" value="1">
+    </div>
+
+    <div class="section">
+        <!-- Step 5: Execute Best CF Button -->
+        <button type="button" id="executeBestCFButton" disabled>Execute Best CF</button>
+    </div>
+    <p id="executeBestCFStatus">{{ execute_best_CF_status }}</p>
+
+    <div id="qqplotContainer" class="section">
+        <img id="qqplotImage" src="" alt="QQ Plot">
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Function to get selected checkboxes from a container
+            function getSelectedCheckboxes(containerId) {
+                const selectedCheckboxes = [];
+                const checkboxes = document.querySelectorAll(`#${containerId} input[type="checkbox"]`);
+                checkboxes.forEach(checkbox => {
+                    if (checkbox.checked) {
+                        selectedCheckboxes.push(checkbox.value);
+                    }
+                });
+                return selectedCheckboxes;
+            }
+            const getNegativeButton = document.getElementById('getNegativeButton');
+            const negativeInstanceSelect = document.getElementById('negativeInstanceSelect');
+            const rcMethodsSelect = document.getElementById('rcMethodsCheckboxes'); 
+            const metricsSelect = document.getElementById('metricsCheckboxes'); 
+            const initClfStatus = document.getElementById('initClfStatus');
+            const executeBestCFStatus = document.getElementById('executeBestCFStatus');
+            const initClassifierButton = document.getElementById('initClassifierButton');
+            const executeBestCFButton = document.getElementById('executeBestCFButton');
+
+            initClassifierButton.addEventListener('click', function() {
+                initClassifierButton.disabled = true;
+                const classifier = document.getElementById('classifier').value;
+                // Send selected options to the server for executing best CF
+                fetch('/init_classifier', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        classifier: classifier
+                    }),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Response:', data.message);
+                    initClfStatus.textContent = data.message;
+                    initClassifierButton.disabled = false;
+                    getNegativeButton.disabled = false;
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
+            });
+
+    
+            getNegativeButton.addEventListener('click', function() {
+                // Fetch negative instances and populate the dropdown
+                fetch('/get_negative_instances_data')
+                    .then(response => response.json())
+                    .then(data => {
+                        const fetchedNegativeInstances = data.negative_instances;
+            
+                        // Clear the previous options
+                        negativeInstanceSelect.innerHTML = "";
+            
+                        // Add new options based on fetched data
+                        fetchedNegativeInstances.forEach(instance => {
+                            const option = document.createElement("option");
+                            option.value = instance;
+                            option.text = instance;
+                            negativeInstanceSelect.appendChild(option);
+                        });
+                        executeBestCFButton.disabled = false;
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                    });
+            });
+
+    
+            // Function to send selected metrics and recourse methods
+            function sendSelectedOptions() {
+                const selectedRCMethods = getSelectedCheckboxes('rcMethodsCheckboxes');
+                const selectedMetrics = getSelectedCheckboxes('metricsCheckboxes');
+
+                // Send selected options to the server
+                fetch('/select_options', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        selectedRCMethods: selectedRCMethods,
+                        selectedMetrics: selectedMetrics,
+                    }),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Response:', data.message);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
+            }
+
+            executeBestCFButton.addEventListener('click', function() {
+                executeBestCFButton.disabled = true;
+                // Get selected values from both multi-select checkboxes
+                const selectedRCMethods = getSelectedCheckboxes('rcMethodsCheckboxes');
+                const selectedMetrics = getSelectedCheckboxes('metricsCheckboxes');
+                const selectedNegativeInstance = negativeInstanceSelect.value;
+                const nParameterValue = document.getElementById('nParameterInput').value;
+
+                // Send selected options to the server for executing best CF
+                fetch('/execute_best_cf', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        selectedRCMethods: selectedRCMethods,
+                        selectedMetrics: selectedMetrics,
+                        selectedNegativeInstance: selectedNegativeInstance,
+                        nParameter: nParameterValue
+                    }),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Response:', data.message);
+                    executeBestCFStatus.textContent = data.message;
+                    executeBestCFButton.disabled = false;
+                    // Add your logic here to handle the response from the server
+                })
+                .catch(error => {
+                    executeBestCFButton.disabled = false;
+                    console.error('Error:', error);
+                });
+                // Fetch the QQ plot image and display it in an <img> element
+                fetch('/qqplot_image')
+                .then(response => response.blob())
+                .then(blob => {
+                    const qqplotImage = document.createElement('img');
+                    qqplotImage.src = URL.createObjectURL(blob);
+                    document.body.appendChild(qqplotImage);  // Add the image to the HTML
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
+            });
+        });
+    </script>    
+    
+</body>
+</html>
