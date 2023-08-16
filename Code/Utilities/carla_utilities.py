@@ -1,10 +1,10 @@
-import CARLA.carla.evaluation.catalog as evaluation_catalog
-from CARLA.carla.data.catalog import OnlineCatalog
-from CARLA.carla.evaluation import Benchmark
-from CARLA.carla.models.catalog import MLModelCatalog
-from CARLA.carla.plotting.plotting import summary_plot, single_sample_plot
-from CARLA.carla.models.negative_instances import predict_negative_instances
-from CARLA.carla.recourse_methods import *
+import Carla.evaluation.catalog as evaluation_catalog
+from Carla.data.catalog import OnlineCatalog
+from Carla.evaluation import Benchmark
+from Carla.models.catalog import MLModelCatalog
+from Carla.plotting.plotting import summary_plot, single_sample_plot
+from Carla.models.negative_instances import predict_negative_instances
+from Carla.recourse_methods import *
 from scipy.stats import anderson, shapiro, norm
 from statsmodels.graphics.gofplots import qqplot
 from matplotlib import pyplot
@@ -383,7 +383,7 @@ def single_sample_normality_test(cfs, model):
     probs = [est.predict_proba(cfs.iloc[0].values.reshape(1,-1)) for est in model.raw_model['estimator'].estimators_]
     probs = np.array(probs)[:,0,1]
     fig = qqplot(probs, line='s')
-    pyplot.show()
+    # pyplot.show()
     
     result = anderson(probs)
 

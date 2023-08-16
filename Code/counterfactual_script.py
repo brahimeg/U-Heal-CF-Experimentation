@@ -1,11 +1,11 @@
-from CARLA.carla.models.negative_instances import predict_negative_instances
+from Carla.models.negative_instances import predict_negative_instances
 from Utilities.customclf import CustomClf
-from CARLA.carla.plotting.plotting import *
+from Carla.plotting.plotting import *
 from Utilities.carla_utilities import *
 from Datasets.optimize import compute_classifier_inputs
 from Datasets.optimize import read_dynamic_features, feature_extraction
 from Datasets.optimize import compute_output_labels, read_static_features
-from CARLA.carla.data.catalog import CsvCatalog
+from Carla.data.catalog import CsvCatalog
 from sklearn.neural_network import MLPClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC

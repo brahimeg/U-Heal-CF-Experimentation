@@ -1,18 +1,18 @@
-from CARLA.carla.evaluation import Benchmark
-from CARLA.carla.models.negative_instances import predict_negative_instances
+from Carla.evaluation import Benchmark
+from Carla.models.negative_instances import predict_negative_instances
 from statsmodels.graphics.gofplots import qqplot
 from matplotlib import pyplot
 from scipy.stats import anderson, shapiro, norm
 import scipy.stats
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
-from CARLA.carla.recourse_methods import *
+from Carla.recourse_methods import *
 from IPython.display import display
 from datetime import datetime
-import CARLA.carla.evaluation.catalog as evaluation_catalog
+import Carla.evaluation.catalog as evaluation_catalog
 from Utilities.customclf import CustomClf
 from Plotting.plots import box_plot_benchmark_multiple_rc_methods
-from CARLA.carla.plotting.plotting import summary_plot, single_sample_plot
+from Carla.plotting.plotting import summary_plot, single_sample_plot
 from Utilities.carla_utilities import determine_feature_types, run_benchmark, generate_confidence_intervals
 from Utilities.carla_utilities import generate_batch_counterfactuals_single_factual
 from Utilities.carla_utilities import save_all_data_and_parameters
@@ -22,7 +22,7 @@ from Datasets.optimize import compute_classifier_inputs
 from Datasets.optimize import read_dynamic_features, feature_extraction
 from Datasets.optimize import compute_output_labels, read_static_features
 from Models.classification import classifier_evaluation
-from CARLA.carla.data.catalog import CsvCatalog
+from Carla.data.catalog import CsvCatalog
 from sklearn.neural_network import MLPClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
