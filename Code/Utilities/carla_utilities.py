@@ -459,3 +459,35 @@ def transform_features_to_original_scale(cfs, factuals, subjects, scalers):
     unscaled_factuals["('lifestyle', 'V2_CAFFEINE_CUPS', 2)"] = scalers["V2_CAFFEINE_CUPS"].inverse_transform(unscaled_factuals["('lifestyle', 'V2_CAFFEINE_CUPS', 2)"])
     unscaled_cfs.index = subjects
     return unscaled_cfs, unscaled_factuals
+
+def generate_recommendation(factual, cf):
+    lifestyle_translation_dict = {
+    "('lifestyle', 'V1_RECDRUGS', 0)_1.0" : ("never used recreational drugs", "used recreational drugs before"),
+    "('lifestyle', 'V2_ALC_12M', 6)_1.0" : ("have not drank alcohol in the last year", "drank alcohol in the last year"),
+    "('lifestyle', 'V2_ALC_12M', 7)_1.0" : ("drank alcohol and more than 1 drink per month in the last year" ,"drank alcohol but less than 1 drink per month in the last year"),
+    "('lifestyle', 'V2_ALC_12M', 8)_1.0" : ("drank alcohol in the last year", "did not drink alcohol in the last year"),
+    "('lifestyle', 'V2_ALC_NEVER', 9)_1.0" : ("never drinks alcohol", "drinks alcohol"),	
+    "('lifestyle', 'V2_CAFFEINE_CUPS', 2)" : "You should change your caffeine intake in cups per day by",
+    "('lifestyle', 'V2_LST_CAFFEINE', 3)_1.0" : ("did not drink caffeine today", "drank caffeine today"),
+    "('lifestyle', 'V2_LST_CAFFEINE', 4)_1.0" : ("did not drink caffeine yesterday", "drank caffeine yesterday"),
+    "('lifestyle', 'V2_LST_CAFFEINE', 5)_1.0" : ("did not drink caffeine before yesterday", "drank caffeine before yesterday"),
+    "('lifestyle', 'V2_RECDRUGS', 1)_1.0" : ("have not used recreational drug used since last visit", "have used recreational drug used since last visit"),
+    "('lifestyle', 'V2_SMOKE', 10)_1.0" : ("never smoked", "smoked before"),
+    "('lifestyle', 'V2_SMOKE', 11)_1.0" : ("doesn't smoke now", "smokes now"),
+    "('lifestyle', 'V2_SMOKE', 12)_1.0" : ("have smoked before but not anymore", "doesn't smoke anymore"),
+    "('lifestyle', 'V2_SMOKE', 13)_1.0" : ("does not smoke cigarettes and also nothing similar like cigars or pipes", "does not smoke cigarettes but does smoke cigars, pipes or something similar"),
+    }
+    diffs = factual - cf
+    diffs = diffs[abs(diffs) > 0.0000001]
+    diffs = diffs[diffs != 0]
+    
+    result = ""
+    for key, value in diffs.to_dict().items():
+        if 'V2_CAFFEINE_CUPS' in key:
+            result += lifestyle_translation_dict[key] + " " + str(round(value, 1)) + ".\n"
+        else:
+            cf_value = int(cf[key])
+            factual_value = int(factual[key])
+            result += 'You should shift your practice from: ' + f"\"{lifestyle_translation_dict[key][factual_value]}\"" + " to: " + f"\"{lifestyle_translation_dict[key][cf_value]}\"" + ".\n"
+    
+    return result

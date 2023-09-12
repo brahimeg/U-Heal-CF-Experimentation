@@ -124,8 +124,8 @@ hyper_parameters['gower_cf']['single_mode'] = True
 
 # Choose a subject from factuals to generate counterfactuals for
 # subject = int(input(f"Please enter a subject ID: {factuals.index.tolist()}\n"))
-subject = factuals.index[1]
-all_results = single_generate_counterfactuals(model, hyper_parameters, factuals.loc[subject], 3, rc_methods=["dice"])   
+subject = 32
+all_results = single_generate_counterfactuals(model, hyper_parameters, factuals.loc[subject], 3, rc_methods=["gs"])   
 
 # Rank generated counterfactuals using average rank method across different metrics
 cf, bench, ranks_df = return_best_cf(all_results, 1, ['L2_distance', 
@@ -146,6 +146,9 @@ cf_probas = generate_confidence_intervals(cf, model.raw_model)
 original_probas = generate_confidence_intervals(factuals.loc[[subject]], model.raw_model)
 merged_probas = original_probas.join(cf_probas, lsuffix='_original', rsuffix='_cf')
 diff_vals, ssplt = single_sample_plot(factuals_unscaled.loc[subject], cf_unscaled.loc[subject], dataset, figsize=(5,2))
+
+
+print(generate_recommendation(factuals_unscaled.loc[subject], cf_unscaled.loc[subject]))
 
 # Print results
 print(diff_vals)

@@ -1,14 +1,10 @@
-import warnings, os, json, io, sys
-print(os.getcwd())
-if (os.getcwd()[-6:] == 'U-Heal'):
-    carla_path = os.path.abspath(os.path.join(os.getcwd(), 'Code//CARLA'))
-    sys.path.append(carla_path)
-    print(carla_path)
-    print(os.path.abspath(os.path.join(os.getcwd(), 'Code')))
+import warnings, os, json, sys
+if (os.getcwd()[-2:] == 'UI'):
+    os.chdir(os.path.abspath(os.path.join(os.getcwd(), os.pardir)))
+if (os.getcwd()[-6:] == 'U-Heal' or os.getcwd()[-1:] == '/'):
     os.chdir(os.path.abspath(os.path.join(os.getcwd(), 'Code')))
-    print(os.getcwd())
-    
-    
+sys.path.append(os.getcwd())
+
 from flask import Flask, render_template, request
 from flask import *
 from Carla.models.negative_instances import predict_negative_instances
@@ -17,7 +13,7 @@ from Carla.plotting.plotting import *
 from Utilities.carla_utilities import *
 from Datasets.optimize import compute_classifier_inputs
 from Datasets.optimize import read_dynamic_features, feature_extraction
-from Datasets.optimize import compute_output_labels, read_static_features
+from Datasets.optimize import compute_output_labels, read_static_features 
 from Carla.data.catalog import CsvCatalog
 from sklearn.neural_network import MLPClassifier
 from sklearn.neighbors import KNeighborsClassifier
@@ -72,21 +68,15 @@ def execute_best_cf():
     cf_unscaled, factuals_unscaled = transform_features_to_original_scale(cf, factuals, [subject], scalers)
     bench.index = [subject]
     cf.index = [subject]
-    qqplt = single_sample_normality_test(cf, model)
-    qqplt_image_path = os.path.join(figure_path, 'qqplot.png')  
-    qqplt.figure.savefig(qqplt_image_path)
-        
-    cf_probas = generate_confidence_intervals(cf, model.raw_model)
-    original_probas = generate_confidence_intervals(factuals.loc[[subject]], model.raw_model)
-    merged_probas = original_probas.join(cf_probas, lsuffix='_original', rsuffix='_cf')
-    diff_vals, ssplt = single_sample_plot(factuals_unscaled.loc[subject], cf_unscaled.loc[subject], dataset, figsize=(5,2))
-    
-    return jsonify({'message': str("aa")})
+    result_message = generate_recommendation(factuals_unscaled.loc[subject], cf_unscaled.loc[subject]) 
+    result_message = 'Benchmarks:\n'+ bench.iloc[0].to_string() + '\n\nRecommendations:\n' + result_message
+    return jsonify({'message': result_message})
 
 @app.route('/qqplot_image')
 def qqplot_image():
-    qqplt_image_path = os.path.join(save_path, 'qqplot.png')
+    qqplt_image_path = os.path.join(figure_path, 'qqplot.png')
     return send_file(qqplt_image_path, mimetype='image/png')
+
 @app.route('/select_options', methods=['POST'])
 def select_options():
     data = request.get_json()
@@ -197,4 +187,4 @@ def init_classifier():
 
     
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', debug=True)
