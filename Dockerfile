@@ -19,4 +19,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY ./ ./
 EXPOSE 5000
 ENV FLASK_APP=./Code/UI/app.py
-CMD [ "python", "-m" , "flask", "run", "--host=0.0.0.0", ]
+CMD [ "python", "-m" , "flask", "run", "--host=0.0.0.0"]

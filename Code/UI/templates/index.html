@@ -45,11 +45,11 @@
     <div class="section">
         <!-- Step 3: CF Methods -->
         <div id="rcMethodsCheckboxes">
-            <label><input type="checkbox" value="gs"> gs</label><br>
-            <label><input type="checkbox" value="gower_cf"> gower_cf</label><br>
-            <label><input type="checkbox" value="dice"> dice</label><br>
-            <label><input type="checkbox" value="revise"> revise</label><br>
-            <label><input type="checkbox" value="cchvae"> cchvae</label><br>
+            <label><input type="checkbox" value="gs"> GS</label><br>
+            <label><input type="checkbox" value="gower_cf"> GowerCF</label><br>
+            <label><input type="checkbox" value="dice"> DiCE</label><br>
+            <label><input type="checkbox" value="revise"> Revise</label><br>
+            <label><input type="checkbox" value="cchvae"> C-CHVAE</label><br>
         </div>
     </div>
     
@@ -57,14 +57,14 @@
     <div class="section">
         <!-- Step 4: Metrics used for Ranking -->
         <div id="metricsCheckboxes">
-            <label><input type="checkbox" value="L2_distance"> L2_distance</label><br>
-            <label><input type="checkbox" value="L1_distance"> L1_distance</label><br>
-            <label><input type="checkbox" value="L0_distance"> L0_distance</label><br>
+            <label><input type="checkbox" value="L2_distance"> L2-distance</label><br>
+            <label><input type="checkbox" value="L1_distance"> L1-distance</label><br>
+            <label><input type="checkbox" value="L0_distance"> L0-distance</label><br>
             <label><input type="checkbox" value="Redundancy"> Redundancy</label><br>
             <label><input type="checkbox" value="Sparsity"> Sparsity</label><br>
-            <label><input type="checkbox" value="avg_time"> avg_time</label><br>
+            <label><input type="checkbox" value="avg_time"> Avg-Time</label><br>
             <label><input type="checkbox" value="Stability"> Stability</label><br>
-            <label><input type="checkbox" value="single-y-Nearest-Neighbours"> single-y-Nearest-Neighbours</label><br>
+            <label><input type="checkbox" value="single-y-Nearest-Neighbours"> Single-y-Nearest-Neighbours</label><br>
         </div>
     </div>
 
@@ -185,7 +185,8 @@
                 const selectedMetrics = getSelectedCheckboxes('metricsCheckboxes');
                 const selectedNegativeInstance = negativeInstanceSelect.value;
                 const nParameterValue = document.getElementById('nParameterInput').value;
-
+                // Display a pending message
+                executeBestCFStatus.textContent = 'Running...';
                 // Send selected options to the server for executing best CF
                 fetch('/execute_best_cf', {
                     method: 'POST',

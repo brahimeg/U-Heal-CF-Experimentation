@@ -474,7 +474,7 @@ def generate_recommendation(factual, cf):
     "('lifestyle', 'V2_RECDRUGS', 1)_1.0" : ("have not used recreational drug used since last visit", "have used recreational drug used since last visit"),
     "('lifestyle', 'V2_SMOKE', 10)_1.0" : ("never smoked", "smoked before"),
     "('lifestyle', 'V2_SMOKE', 11)_1.0" : ("doesn't smoke now", "smokes now"),
-    "('lifestyle', 'V2_SMOKE', 12)_1.0" : ("have smoked before but not anymore", "doesn't smoke anymore"),
+    "('lifestyle', 'V2_SMOKE', 12)_1.0" : ("have smoked before but not anymore", "did not smoke before but smokes now"),
     "('lifestyle', 'V2_SMOKE', 13)_1.0" : ("does not smoke cigarettes and also nothing similar like cigars or pipes", "does not smoke cigarettes but does smoke cigars, pipes or something similar"),
     }
     diffs = factual - cf

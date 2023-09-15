@@ -63,13 +63,16 @@ def execute_best_cf():
 
     # Rank generated counterfactuals using average rank method across different metrics
     cf, bench, ranks_df = return_best_cf(all_results, 1, selected_metrics)
+    bench.columns = ['Method', 'Single-y-Nearest-Neighbours', 'Stability', 'Redundancy',
+                    'Sparsity', 'L0-distance', 'L1-distance', 'L2-distance',
+                    'Linf-distance', 'Avg-Time', 'Connectedness', 'Avg-Rank']
     if cf.empty:
-        return
+        return jsonify({'message': "No Counterfactuals were generated!"})
     cf_unscaled, factuals_unscaled = transform_features_to_original_scale(cf, factuals, [subject], scalers)
     bench.index = [subject]
     cf.index = [subject]
     result_message = generate_recommendation(factuals_unscaled.loc[subject], cf_unscaled.loc[subject]) 
-    result_message = 'Benchmarks:\n'+ bench.iloc[0].to_string() + '\n\nRecommendations:\n' + result_message
+    result_message = f'Generated {len(ranks_df)} counterfactuals for subject {subject}\n\n' + 'Benchmarks highest ranked counterfactual:\n'+ bench.iloc[0].to_string() + '\n\nRecommendations:\n' + result_message
     return jsonify({'message': result_message})
 
 @app.route('/qqplot_image')

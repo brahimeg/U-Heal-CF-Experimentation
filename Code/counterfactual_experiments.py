@@ -148,7 +148,7 @@ dataset = CsvCatalog(df=X_df,
 
 # Create custom classifier using carla interface
 # TODO: remove fit_full_data param to make pull request possible eventually
-model = CustomClf(dataset, clf=best_classifier, scaling=False, fit_full_data=True, calibration='sigmoid', bagging=50)
+model = CustomClf(dataset, clf=best_classifier, scaling=False, fit_full_data=True, calibration=None, bagging=50)
 
 # predict negative instances to flip later on using one of the counterfactual generation methods
 factuals = predict_negative_instances(model, dataset.df[model.X.columns])
@@ -278,6 +278,11 @@ cfs_combined_gs['Original'] = cfs_probas_original_gs[:,1:].reshape(1, len(cfs_pr
 cfs_combined_gs['Calibrated'] = cfs_probas_calibrated_gs[:,1:].reshape(1, len(cfs_probas_calibrated_gs))[0]
 sns.scatterplot(data=cfs_combined_gs)
 plt.axhline(y=0.5, color='gray', alpha=0.4) 
+plt.xlabel('Subject ID')
+plt.ylabel('Probability')
+fig = plt.gcf()
+fig.savefig(figure_path + '//gs_probas.png', dpi=300)
+
 
 cfs_probas_calibrated_ng = calib_model.predict_proba(org_ng_cfs)
 cfs_probas_original_ng = org_model.predict_proba(org_ng_cfs)
@@ -288,29 +293,39 @@ cfs_combined_ng['Original'] = cfs_probas_original_ng[:,1:].reshape(1, len(cfs_pr
 cfs_combined_ng['Calibrated'] = cfs_probas_calibrated_ng[:,1:].reshape(1, len(cfs_probas_calibrated_ng))[0]
 sns.scatterplot(data=cfs_combined_ng)
 plt.axhline(y=0.5, color='gray', alpha=0.4) 
-
+plt.xlabel('Subject ID')
+plt.ylabel('Probability')
+plt.legend(loc="center right")
+fig = plt.gcf()
+fig.savefig(figure_path + '//ng_probas.png', dpi=300)
 
 combined_data = pd.concat([org_gs_bench, calib_gs_bench])
 
-sns.set(style="white", font_scale=1, palette="ch:start=.2,rot=-.3")
+sns.set(style="white", font_scale=1.2, palette="ch:start=.2,rot=-.3")
 melt_combined = pd.melt(combined_data[['Type', 'single-y-Nearest-Neighbours', 'Stability', 'Redundancy','Sparsity','connectedness', 'Success_Rate']], id_vars=['Type'])
-melt_combined.variable.replace('single-y-Nearest-Neighbours', 'single-yNN', inplace=True)
+melt_combined.variable.replace('single-y-Nearest-Neighbours', 'Single-yNN', inplace=True)
+melt_combined.variable.replace('connectedness', 'Connectedness', inplace=True)
 melt_combined.variable.replace('Success_Rate', 'Success Rate', inplace=True)
-plt.figure(figsize=(8,4))
+plt.figure(figsize=(9,4))
 ax = sns.barplot(data=melt_combined, x="variable", y='value', hue='Type')
 ax.set(xlabel=None)
-
+ax.set(ylabel="Ratio")
+fig = plt.gcf()
+fig.savefig(figure_path + '//calibrated_metrics_gs.png', dpi=400)
 
 combined_data = pd.concat([org_ng_bench, calib_ng_bench])
 
-sns.set(style="white", font_scale=1, palette="ch:start=.2,rot=-.3")
+sns.set(style="white", font_scale=1.5, palette="ch:start=.2,rot=-.3")
 melt_combined = pd.melt(combined_data[['Type', 'single-y-Nearest-Neighbours', 'Stability', 'Redundancy','Sparsity','connectedness', 'Success_Rate']], id_vars=['Type'])
-melt_combined.variable.replace('single-y-Nearest-Neighbours', 'single-yNN', inplace=True)
+melt_combined.variable.replace('single-y-Nearest-Neighbours', 'Single-yNN', inplace=True)
+melt_combined.variable.replace('connectedness', 'Connectedness', inplace=True)
 melt_combined.variable.replace('Success_Rate', 'Success Rate', inplace=True)
-plt.figure(figsize=(8,4))
+plt.figure(figsize=(9,4))
 ax = sns.barplot(data=melt_combined, x="variable", y='value', hue='Type')
 ax.set(xlabel=None)
-
+ax.set(ylabel="Ratio")
+fig = plt.gcf()
+fig.savefig(figure_path + '//calibrated_metrics_ng.png', dpi=400)
 
 
 ##############################################################################################################################
@@ -353,6 +368,12 @@ combined_data = pd.concat(combined_data, keys=bench_results.keys())
 combined_data.index.names = ['CLF', 'Method', 'index']
 combined_data.reset_index(level=['CLF', 'Method'], inplace=True)
 combined_data.reset_index(inplace=True, drop=True)
+combined_data.Method.replace('gs', 'GS', inplace=True)
+combined_data.Method.replace('revise', 'Revise', inplace=True)
+combined_data.Method.replace('dice', 'DiCE', inplace=True)
+combined_data.Method.replace('gower_cf', 'GowerCF', inplace=True)
+combined_data.Method.replace('cchvae', 'C-CHVAE', inplace=True)
+
 
 sns.set(style="white", palette="ch:start=.2,rot=-.3")
 sns.boxplot(data = combined_data, x = 'L2_distance', y='Method')
@@ -379,45 +400,48 @@ ax = [ax.bar_label(x) for x in ax.containers]
 ax = sns.barplot(data=combined_data, x="Method", y='Success_Rate', hue='CLF')
 ax = sns.barplot(data=combined_data, x="Method", y='avg_time', hue='CLF')
 
-sns.set(style="white", palette="ch:start=.2,rot=-.3")
+sns.set(style="white", palette="ch:start=.2,rot=-.3", font_scale=1.5)
 fig, axes = plt.subplots(3, 2, figsize=(15, 15), sharey=True)
-fig.tight_layout(pad=4)
+fig.tight_layout(pad=2.5)
 ax = sns.barplot(ax=axes[0,1], data=combined_data, x="Method", y='Success_Rate', hue='CLF')
 ax.legend(loc="upper right", fontsize='17')
 # ax.get_legend().remove()
-ax.set_xlabel("b) Success rates grouped per classifier", fontsize = 20)
-ax.set_ylabel(ylabel= 'Stability', fontsize = 15)
+ax.set_title("b) Success Ratios: higher is better", fontsize = 20, pad=15)
+ax.set_ylabel(ylabel= 'Success Ratio')
 ax.tick_params(labelsize=15)
+ax.set(xlabel=None)
 ax = sns.barplot(ax=axes[0,0], data=combined_data, x="Method", y='Stability', hue='CLF')
 ax.get_legend().remove()
-ax.set_xlabel("a) Stability ratios grouped per classifier", fontsize = 20)
-ax.set_ylabel(ylabel= 'Stability', fontsize = 15)
+ax.set_title("a) Stability Ratios: higher is better", fontsize = 20, pad=15)
+ax.set(xlabel=None)
+ax.set_ylabel(ylabel= 'Stability')
 ax.tick_params(labelsize=15)
 ax = sns.barplot(ax=axes[2,1], data=combined_data, x="Method", y='connectedness', hue='CLF')
 ax.get_legend().remove()
 ax.set(xlabel=None)
 ax.tick_params(labelsize=15)
-ax.set_xlabel("f) Connectedness ratios grouped per classifier", fontsize = 20)
-ax.set_ylabel(ylabel= 'Connectedness', fontsize = 15)
+ax.set_title("f) Connectedness Ratios: higher is better", fontsize = 20, pad=15)
+ax.set_ylabel(ylabel= 'Connectedness')
 ax = sns.barplot(ax=axes[1,0], data=combined_data, x="Method", y='Redundancy', hue='CLF')
 ax.get_legend().remove()
 ax.set(xlabel=None)
 ax.tick_params(labelsize=15)
-ax.set_ylabel(ylabel= 'Redundancy', fontsize = 15)
-ax.set_xlabel("c) Redundancy ratios grouped per classifier", fontsize = 20)
+ax.set_ylabel(ylabel= 'Redundancy')
+ax.set_title("c) Redundancy Ratios: lower is better", fontsize = 20, pad=15)
 ax = sns.barplot(ax=axes[1,1], data=combined_data, x="Method", y='Sparsity', hue='CLF')
 ax.get_legend().remove()
 ax.set(xlabel=None)
 ax.tick_params(labelsize=15)
-ax.set_ylabel(ylabel= 'Sparsity', fontsize = 15)
-ax.set_xlabel("d) Sparsity ratios grouped per classifier", fontsize = 20)
+ax.set_ylabel(ylabel= 'Sparsity')
+ax.set_title("d) Sparsity Ratios: lower is better", fontsize = 20, pad=15)
 ax = sns.barplot(ax=axes[2,0], data=combined_data, x="Method", y='single-y-Nearest-Neighbours', hue='CLF')
 ax.get_legend().remove()
 ax.set(xlabel=None)
 ax.tick_params(labelsize=15)
-ax.set_ylabel(ylabel= 'Single yNN', fontsize = 15)
-ax.set_xlabel("e) Single yNN ratios grouped per classifier", fontsize = 20)
+ax.set_ylabel(ylabel= 'Single yNN')
+ax.set_title("e) Single yNN Ratios: higher is better", fontsize = 20, pad=15)
 handles, labels = ax.get_legend_handles_labels()
+fig.savefig(figure_path + '\\metrics_plot_clf.png', dpi=700)
 # fig.delaxes(axes[0][1])
 # fig.legend(handles, labels, bbox_to_anchor=(0.8, .84), fontsize='18')
 
@@ -464,21 +488,27 @@ ax = sns.barplot(data=combined_data, x="Method", y='single-y-Nearest-Neighbours'
 
 sns.set(style="white", font_scale=2, palette="ch:start=.2,rot=-.3")
 melt_combined = pd.melt(combined_data[['CLF', 'Method', 'single-y-Nearest-Neighbours', 'Stability', 'Redundancy','Sparsity','connectedness']], id_vars=['CLF', 'Method'])
-melt_combined.variable.replace('single-y-Nearest-Neighbours', 'single-yNN', inplace=True)
-plt.figure(figsize=(20,10))
+melt_combined.variable.replace('single-y-Nearest-Neighbours', 'Single-yNN', inplace=True)
+melt_combined.variable.replace('connectedness', 'Connectedness', inplace=True)
+fig = plt.figure(figsize=(15,9))
 ax = sns.barplot(data=melt_combined, x="variable", y='value', hue='Method')
-ax.set(xlabel=None)
-plt.xticks(rotation=90)
-
+ax.set(ylabel='Ratio')
+ax.legend(loc='best', fontsize='22') 
+ax.set_xlabel(xlabel="Metric", labelpad=15)
+# plt.xticks(rotation=90)   
+# fig.tight_layout(pad=4.5)
+fig.savefig(figure_path + '\\metrics_plot_rc.png', dpi=600)
 
 sns.set(style="whitegrid", palette="ch:start=.2,rot=-.3")
 fig, ax = plt.subplots(1, figsize=(10, 5))
 plt.xscale('log')
 ax = sns.boxplot(data=combined_data, y="Method", x="L2_distance", orient="h")
+fig.savefig(figure_path + '\\l2_box_plot_rc_comp.png', dpi=800)
 
 fig, ax = plt.subplots(1, figsize=(10, 5))
 plt.xscale('log')
 ax = sns.boxplot(data=combined_data, y="Method", x="L2_distance", hue='CLF', orient="h")
+fig.savefig(figure_path + '\\l2_box_plot_clf_comp.png', dpi=800)
 
 # single clf comparison plot
 sns.set(style="darkgrid")
@@ -524,7 +554,7 @@ connect_folder = os.path.join(carla_save_path, 'connectedness experiments')
 
 
 # connectedness experiments    
-rc_methods = ['gs', 'revise', 'dice','gower_cf', 'cchvae']
+rc_methods = ['gs', 'revise', 'dice','naive_gower', 'cchvae']
 connect_folder = os.path.join(carla_save_path, 'connectedness experiments')
 cfs_for_conns = {}
 models = {}
@@ -553,10 +583,10 @@ for method in rc_methods:
     
     
 final_c_bench = pd.DataFrame()
-for eps in np.arange(4.5, 6, 0.5):
+for eps in np.arange(3, 7.5, 0.5):
     print(eps)
     hyper_parameters['connectedness']['eps'] = eps  
-    for min_s in np.arange(30,100,10):
+    for min_s in np.arange(4,12,2):
         hyper_parameters['connectedness']['min_samples'] = min_s  
         for key, value in cfs_for_conns.items():
             row = {}
@@ -571,31 +601,37 @@ for eps in np.arange(4.5, 6, 0.5):
                 row['Connected%'] = 0
             final_c_bench = final_c_bench.append(row, ignore_index=True)
 
-sns.set(style="white")
+final_c_bench.method.replace('gs', 'GS', inplace=True)
+final_c_bench.method.replace('revise', 'Revise', inplace=True)
+final_c_bench.method.replace('dice', 'DiCE', inplace=True)
+final_c_bench.method.replace('naive_gower', 'GowerCF', inplace=True)
+final_c_bench.method.replace('cchvae', 'C-CHVAE', inplace=True)
+
+sns.set(style="white", font_scale=1.5)
 fig, axes = plt.subplots(2, 2, figsize=(14, 9), sharey=True)
-fig.tight_layout(pad=3.5)
+fig.tight_layout(pad=3)
 
 temp_data_min_s = final_c_bench[final_c_bench.min_samples == 4]
-axes[0,0].set_title('a) epsilon analysis for min_samples of 4', fontsize=16)
-ax = sns.lineplot(ax=axes[0,0], data=temp_data_min_s, x='epsilon', y='Connected%',hue="method")            
-# ax.get_legend().remove()
+axes[0,0].set_title('a) epsilon analysis for min_samples of 4', fontsize=18, pad=15)
+ax = sns.lineplot(ax=axes[0,0], data=temp_data_min_s, x='epsilon', y='Connected%',hue="method")   
+ax.legend(loc="upper left", fontsize='14')         
 
 temp_data_min_s = final_c_bench[final_c_bench.min_samples == 6]
-axes[0,1].set_title('b) epsilon analysis for min_samples of 6', fontsize=16)
+axes[0,1].set_title('b) epsilon analysis for min_samples of 6', fontsize=18, pad=15)
 ax = sns.lineplot(ax=axes[0,1], data=temp_data_min_s, x='epsilon', y='Connected%',hue="method")            
 ax.get_legend().remove()
 
 temp_data_min_s = final_c_bench[final_c_bench.min_samples == 8]
-axes[1,0].set_title('c) epsilon analysis for min_samples of 8', fontsize=16)
+axes[1,0].set_title('c) epsilon analysis for min_samples of 8', fontsize=18, pad=10)
 ax = sns.lineplot(ax=axes[1,0], data=temp_data_min_s, x='epsilon', y='Connected%',hue="method")            
 ax.get_legend().remove()
 
 temp_data_min_s = final_c_bench[final_c_bench.min_samples == 10]
-axes[1,1].set_title('d) epsilon analysis for min_samples of 10', fontsize=16)
+axes[1,1].set_title('d) epsilon analysis for min_samples of 10', fontsize=18, pad=10)
 ax = sns.lineplot(ax=axes[1,1], data=temp_data_min_s, x='epsilon', y='Connected%',hue="method")            
 ax.get_legend().remove()
 
-
+fig.savefig(figure_path + '\\connectedness_experiments.png', dpi=800)
 
 
 
