@@ -1,0 +1,8 @@
+.venvLaptop
+.venvLaptop2
+.venv
+.env
+*.pyc
+test_file.py
+Data/Optimise/Results/*
+Data/Optimise
