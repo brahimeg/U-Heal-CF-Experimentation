@@ -12,7 +12,7 @@ In able to run the CARLA experiments using your environment you need to follow t
 1. Install docker engine from https://docs.docker.com/engine/install/
 2. Download the docker image from your secure link
 3. Open terminal and run the following command: 
-   - docker load -i <path to the image tar file>
+   - docker load -i \<path to the image tar file\>
 4. Run the docker image with the following command:
-   - docker run --publish 5000:5000 <image name>
+   - docker run --publish 5000:5000 \<image name\>
 5. Open your browser and go to http://localhost:5000/ to see the UI
